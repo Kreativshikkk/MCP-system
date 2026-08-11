@@ -1,0 +1,50 @@
+[template]
+id = "gitlab_default"
+name = "GitLab software company bootstrap"
+version = "1.0.0"
+mcp_surfaces = ["gitlab_rest_v4"]
+
+[[services]]
+instance_id = "gitlab"
+plugin = "gitlab"
+version = "0.1.0"
+
+[services.seed]
+created_at = "2026-01-01T00:00:00+00:00"
+
+[services.seed.group]
+path = "acme"
+name = "Acme Software"
+visibility = "private"
+
+[[services.seed.users]]
+username = "director"
+name = "Director"
+email = "director@acme.local"
+admin = true
+access_level = 50
+
+[[services.seed.users]]
+username = "lead"
+name = "Team Lead"
+email = "lead@acme.local"
+access_level = 50
+
+[[services.seed.users]]
+username = "engineer"
+name = "Software Engineer"
+email = "engineer@acme.local"
+access_level = 30
+
+[[services.seed.users]]
+username = "qa"
+name = "QA Engineer"
+email = "qa@acme.local"
+access_level = 30
+
+[[services.seed.projects]]
+path = "product"
+name = "Product"
+description = "Primary product project"
+visibility = "private"
+default_branch = "main"

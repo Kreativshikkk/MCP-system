@@ -1,0 +1,1 @@
+{"name":"linear-read-smoke","steps":[{"id":"viewer","real":{"method":"POST","path":"","operationType":"query","json":{"query":"query Viewer { viewer { id email name displayName active admin } }","variables":{}}},"replica":{"operation":"get_viewer"},"expect":{"real_status":200},"compare":{"real_body":"$.data.viewer"}}]}

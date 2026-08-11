@@ -1,0 +1,1375 @@
+{
+  "source": "https://gitlab.com/gitlab-org/gitlab/-/blob/eb75d05715acad3d0ca93f7fbc699e7736470297/doc/api/openapi/openapi_v3.yaml",
+  "revision": "eb75d05715acad3d0ca93f7fbc699e7736470297",
+  "openapi": "3.0.0",
+  "gitlab_version": "19.3.0-pre",
+  "scope": "MCPSystem core software-development workflow; integrations, invitations, Jira, administration and SaaS features excluded",
+  "operations": [
+    {
+      "method": "GET",
+      "path": "/api/v4/user",
+      "operation_id": "getApiV4User",
+      "request": {
+      },
+      "responses": [
+        "200",
+        "401",
+        "403"
+      ]
+    },
+    {
+      "method": "GET",
+      "path": "/api/v4/users",
+      "operation_id": "getApiV4Users",
+      "request": {
+      },
+      "responses": [
+        "200",
+        "400"
+      ]
+    },
+    {
+      "method": "GET",
+      "path": "/api/v4/groups/{id}",
+      "operation_id": "getApiV4GroupsId",
+      "request": {
+      },
+      "responses": [
+        "200",
+        "404",
+        "400"
+      ]
+    },
+    {
+      "method": "GET",
+      "path": "/api/v4/groups/{id}/members",
+      "operation_id": "getApiV4GroupsIdMembers",
+      "request": {
+      },
+      "responses": [
+        "200",
+        "404",
+        "400"
+      ]
+    },
+    {
+      "method": "GET",
+      "path": "/api/v4/groups/{id}/projects",
+      "operation_id": "getApiV4GroupsIdProjects",
+      "request": {
+      },
+      "responses": [
+        "200",
+        "404",
+        "400"
+      ]
+    },
+    {
+      "method": "GET",
+      "path": "/api/v4/projects/{id}",
+      "operation_id": "getApiV4ProjectsId",
+      "request": {
+      },
+      "responses": [
+        "200",
+        "404",
+        "400"
+      ]
+    },
+    {
+      "method": "GET",
+      "path": "/api/v4/projects/{id}/labels",
+      "operation_id": "getApiV4ProjectsIdLabels",
+      "request": {
+      },
+      "responses": [
+        "200",
+        "404",
+        "400"
+      ]
+    },
+    {
+      "method": "POST",
+      "path": "/api/v4/projects/{id}/labels",
+      "operation_id": "postApiV4ProjectsIdLabels",
+      "request": {
+        "application/json": {
+          "required": [
+            "name",
+            "color"
+          ],
+          "properties": [
+            "archived",
+            "color",
+            "description",
+            "name",
+            "priority"
+          ]
+        }
+      },
+      "responses": [
+        "201",
+        "404",
+        "400"
+      ]
+    },
+    {
+      "method": "PUT",
+      "path": "/api/v4/projects/{id}/labels",
+      "operation_id": "putApiV4ProjectsIdLabels",
+      "request": {
+        "application/json": {
+          "required": [
+
+          ],
+          "properties": [
+            "archived",
+            "color",
+            "description",
+            "label_id",
+            "name",
+            "new_name",
+            "priority"
+          ]
+        }
+      },
+      "responses": [
+        "200",
+        "404",
+        "400"
+      ]
+    },
+    {
+      "method": "DELETE",
+      "path": "/api/v4/projects/{id}/labels",
+      "operation_id": "deleteApiV4ProjectsIdLabels",
+      "request": {
+      },
+      "responses": [
+        "200",
+        "404",
+        "400"
+      ]
+    },
+    {
+      "method": "GET",
+      "path": "/api/v4/projects/{id}/issues",
+      "operation_id": "getApiV4ProjectsIdIssues",
+      "request": {
+      },
+      "responses": [
+        "200",
+        "404",
+        "400"
+      ]
+    },
+    {
+      "method": "POST",
+      "path": "/api/v4/projects/{id}/issues",
+      "operation_id": "postApiV4ProjectsIdIssues",
+      "request": {
+        "application/json": {
+          "required": [
+            "title"
+          ],
+          "properties": [
+            "add_labels",
+            "assignee_id",
+            "assignee_ids",
+            "confidential",
+            "created_at",
+            "description",
+            "discussion_locked",
+            "discussion_to_resolve",
+            "due_date",
+            "epic_id",
+            "epic_iid",
+            "iid",
+            "issue_type",
+            "labels",
+            "merge_request_to_resolve_discussions_of",
+            "milestone",
+            "milestone_id",
+            "remove_labels",
+            "severity",
+            "start_date",
+            "title",
+            "weight"
+          ]
+        }
+      },
+      "responses": [
+        "201",
+        "404",
+        "400"
+      ]
+    },
+    {
+      "method": "GET",
+      "path": "/api/v4/projects/{id}/issues/{issue_iid}",
+      "operation_id": "getApiV4ProjectsIdIssuesIssueIid",
+      "request": {
+      },
+      "responses": [
+        "200",
+        "404",
+        "400"
+      ]
+    },
+    {
+      "method": "PUT",
+      "path": "/api/v4/projects/{id}/issues/{issue_iid}",
+      "operation_id": "putApiV4ProjectsIdIssuesIssueIid",
+      "request": {
+        "application/json": {
+          "required": [
+
+          ],
+          "properties": [
+            "add_labels",
+            "assignee_id",
+            "assignee_ids",
+            "confidential",
+            "created_at",
+            "description",
+            "discussion_locked",
+            "due_date",
+            "epic_id",
+            "epic_iid",
+            "issue_type",
+            "labels",
+            "milestone",
+            "milestone_id",
+            "remove_labels",
+            "severity",
+            "start_date",
+            "state_event",
+            "title",
+            "updated_at",
+            "weight"
+          ]
+        }
+      },
+      "responses": [
+        "200",
+        "404",
+        "400"
+      ]
+    },
+    {
+      "method": "DELETE",
+      "path": "/api/v4/projects/{id}/issues/{issue_iid}",
+      "operation_id": "deleteApiV4ProjectsIdIssuesIssueIid",
+      "request": {
+      },
+      "responses": [
+        "204",
+        "404",
+        "400"
+      ]
+    },
+    {
+      "method": "GET",
+      "path": "/api/v4/projects/{id}/issues/{noteable_id}/notes",
+      "operation_id": "getApiV4ProjectsIdIssuesNoteableIdNotes",
+      "request": {
+      },
+      "responses": [
+        "200",
+        "404",
+        "400"
+      ]
+    },
+    {
+      "method": "POST",
+      "path": "/api/v4/projects/{id}/issues/{noteable_id}/notes",
+      "operation_id": "postApiV4ProjectsIdIssuesNoteableIdNotes",
+      "request": {
+        "application/json": {
+          "required": [
+            "body"
+          ],
+          "properties": [
+            "body",
+            "confidential",
+            "created_at",
+            "internal",
+            "merge_request_diff_head_sha"
+          ]
+        }
+      },
+      "responses": [
+        "201",
+        "404",
+        "400"
+      ]
+    },
+    {
+      "method": "GET",
+      "path": "/api/v4/projects/{id}/issues/{noteable_id}/notes/{note_id}",
+      "operation_id": "getApiV4ProjectsIdIssuesNoteableIdNotesNoteId",
+      "request": {
+      },
+      "responses": [
+        "200",
+        "404",
+        "400"
+      ]
+    },
+    {
+      "method": "PUT",
+      "path": "/api/v4/projects/{id}/issues/{noteable_id}/notes/{note_id}",
+      "operation_id": "putApiV4ProjectsIdIssuesNoteableIdNotesNoteId",
+      "request": {
+        "application/json": {
+          "required": [
+
+          ],
+          "properties": [
+            "body",
+            "confidential"
+          ]
+        }
+      },
+      "responses": [
+        "200",
+        "404",
+        "400"
+      ]
+    },
+    {
+      "method": "DELETE",
+      "path": "/api/v4/projects/{id}/issues/{noteable_id}/notes/{note_id}",
+      "operation_id": "deleteApiV4ProjectsIdIssuesNoteableIdNotesNoteId",
+      "request": {
+      },
+      "responses": [
+        "200",
+        "404",
+        "400"
+      ]
+    },
+    {
+      "method": "GET",
+      "path": "/api/v4/projects/{id}/repository/tree",
+      "operation_id": "getApiV4ProjectsIdRepositoryTree",
+      "request": {
+      },
+      "responses": [
+        "200",
+        "404",
+        "400"
+      ]
+    },
+    {
+      "method": "GET",
+      "path": "/api/v4/projects/{id}/repository/compare",
+      "operation_id": "getApiV4ProjectsIdRepositoryCompare",
+      "request": {
+      },
+      "responses": [
+        "200",
+        "404",
+        "400"
+      ]
+    },
+    {
+      "method": "GET",
+      "path": "/api/v4/projects/{id}/repository/files/{file_path}",
+      "operation_id": "getApiV4ProjectsIdRepositoryFilesFilePath",
+      "request": {
+      },
+      "responses": [
+        "200",
+        "404",
+        "400"
+      ]
+    },
+    {
+      "method": "POST",
+      "path": "/api/v4/projects/{id}/repository/files/{file_path}",
+      "operation_id": "postApiV4ProjectsIdRepositoryFilesFilePath",
+      "request": {
+        "multipart/form-data": {
+          "required": [
+            "file"
+          ],
+          "properties": [
+            "file"
+          ]
+        }
+      },
+      "responses": [
+        "201",
+        "404",
+        "400"
+      ]
+    },
+    {
+      "method": "PUT",
+      "path": "/api/v4/projects/{id}/repository/files/{file_path}",
+      "operation_id": "putApiV4ProjectsIdRepositoryFilesFilePath",
+      "request": {
+        "multipart/form-data": {
+          "required": [
+            "file"
+          ],
+          "properties": [
+            "file"
+          ]
+        }
+      },
+      "responses": [
+        "200",
+        "404",
+        "400"
+      ]
+    },
+    {
+      "method": "DELETE",
+      "path": "/api/v4/projects/{id}/repository/files/{file_path}",
+      "operation_id": "deleteApiV4ProjectsIdRepositoryFilesFilePath",
+      "request": {
+      },
+      "responses": [
+        "204",
+        "404",
+        "400"
+      ]
+    },
+    {
+      "method": "GET",
+      "path": "/api/v4/projects/{id}/repository/commits",
+      "operation_id": "getApiV4ProjectsIdRepositoryCommits",
+      "request": {
+      },
+      "responses": [
+        "200",
+        "400",
+        "401",
+        "404"
+      ]
+    },
+    {
+      "method": "POST",
+      "path": "/api/v4/projects/{id}/repository/commits",
+      "operation_id": "postApiV4ProjectsIdRepositoryCommits",
+      "request": {
+        "multipart/form-data": {
+          "required": [
+            "file"
+          ],
+          "properties": [
+            "file"
+          ]
+        }
+      },
+      "responses": [
+        "200",
+        "400",
+        "401",
+        "403",
+        "404"
+      ]
+    },
+    {
+      "method": "GET",
+      "path": "/api/v4/projects/{id}/repository/commits/{sha}/diff",
+      "operation_id": "getApiV4ProjectsIdRepositoryCommitsShaDiff",
+      "request": {
+      },
+      "responses": [
+        "200",
+        "404",
+        "400"
+      ]
+    },
+    {
+      "method": "GET",
+      "path": "/api/v4/projects/{id}/repository/commits/{sha}",
+      "operation_id": "getApiV4ProjectsIdRepositoryCommitsSha",
+      "request": {
+      },
+      "responses": [
+        "200",
+        "404",
+        "400"
+      ]
+    },
+    {
+      "method": "GET",
+      "path": "/api/v4/projects/{id}/repository/branches",
+      "operation_id": "getApiV4ProjectsIdRepositoryBranches",
+      "request": {
+      },
+      "responses": [
+        "200",
+        "404",
+        "400"
+      ]
+    },
+    {
+      "method": "POST",
+      "path": "/api/v4/projects/{id}/repository/branches",
+      "operation_id": "postApiV4ProjectsIdRepositoryBranches",
+      "request": {
+        "application/json": {
+          "required": [
+            "branch",
+            "ref"
+          ],
+          "properties": [
+            "branch",
+            "ref"
+          ]
+        }
+      },
+      "responses": [
+        "201",
+        "400",
+        "404"
+      ]
+    },
+    {
+      "method": "GET",
+      "path": "/api/v4/projects/{id}/repository/branches/{branch}",
+      "operation_id": "getApiV4ProjectsIdRepositoryBranchesBranch",
+      "request": {
+      },
+      "responses": [
+        "200",
+        "404",
+        "400"
+      ]
+    },
+    {
+      "method": "DELETE",
+      "path": "/api/v4/projects/{id}/repository/branches/{branch}",
+      "operation_id": "deleteApiV4ProjectsIdRepositoryBranchesBranch",
+      "request": {
+      },
+      "responses": [
+        "204",
+        "404",
+        "400"
+      ]
+    },
+    {
+      "method": "GET",
+      "path": "/api/v4/projects/{id}/repository/tags",
+      "operation_id": "getApiV4ProjectsIdRepositoryTags",
+      "request": {
+      },
+      "responses": [
+        "200",
+        "403",
+        "404",
+        "422",
+        "503",
+        "400"
+      ]
+    },
+    {
+      "method": "POST",
+      "path": "/api/v4/projects/{id}/repository/tags",
+      "operation_id": "postApiV4ProjectsIdRepositoryTags",
+      "request": {
+        "application/json": {
+          "required": [
+            "tag_name",
+            "ref"
+          ],
+          "properties": [
+            "message",
+            "ref",
+            "tag_name"
+          ]
+        }
+      },
+      "responses": [
+        "201",
+        "400",
+        "403",
+        "404"
+      ]
+    },
+    {
+      "method": "GET",
+      "path": "/api/v4/projects/{id}/repository/tags/{tag_name}",
+      "operation_id": "getApiV4ProjectsIdRepositoryTagsTagName",
+      "request": {
+      },
+      "responses": [
+        "200",
+        "403",
+        "404",
+        "400"
+      ]
+    },
+    {
+      "method": "DELETE",
+      "path": "/api/v4/projects/{id}/repository/tags/{tag_name}",
+      "operation_id": "deleteApiV4ProjectsIdRepositoryTagsTagName",
+      "request": {
+      },
+      "responses": [
+        "204",
+        "400",
+        "403",
+        "404",
+        "412"
+      ]
+    },
+    {
+      "method": "GET",
+      "path": "/api/v4/projects/{id}/merge_requests",
+      "operation_id": "getApiV4ProjectsIdMergeRequests",
+      "request": {
+      },
+      "responses": [
+        "200",
+        "401",
+        "404",
+        "422",
+        "400"
+      ]
+    },
+    {
+      "method": "POST",
+      "path": "/api/v4/projects/{id}/merge_requests",
+      "operation_id": "postApiV4ProjectsIdMergeRequests",
+      "request": {
+        "application/json": {
+          "required": [
+            "title",
+            "source_branch",
+            "target_branch"
+          ],
+          "properties": [
+            "add_labels",
+            "allow_collaboration",
+            "allow_maintainer_to_push",
+            "approval_rules_attributes",
+            "approvals_before_merge",
+            "assignee_id",
+            "assignee_ids",
+            "description",
+            "labels",
+            "merge_after",
+            "milestone",
+            "milestone_id",
+            "remove_labels",
+            "remove_source_branch",
+            "reviewer_ids",
+            "source_branch",
+            "squash",
+            "target_branch",
+            "target_project_id",
+            "title"
+          ]
+        }
+      },
+      "responses": [
+        "201",
+        "400",
+        "401",
+        "404",
+        "409",
+        "422"
+      ]
+    },
+    {
+      "method": "GET",
+      "path": "/api/v4/projects/{id}/merge_requests/{merge_request_iid}/changes",
+      "operation_id": "getApiV4ProjectsIdMergeRequestsMergeRequestIidChanges",
+      "request": {
+      },
+      "responses": [
+        "200",
+        "404",
+        "400"
+      ]
+    },
+    {
+      "method": "GET",
+      "path": "/api/v4/projects/{id}/merge_requests/{merge_request_iid}/approvals",
+      "operation_id": "getApiV4ProjectsIdMergeRequestsMergeRequestIidApprovals",
+      "request": {
+      },
+      "responses": [
+        "200",
+        "404",
+        "400"
+      ]
+    },
+    {
+      "method": "POST",
+      "path": "/api/v4/projects/{id}/merge_requests/{merge_request_iid}/approve",
+      "operation_id": "postApiV4ProjectsIdMergeRequestsMergeRequestIidApprove",
+      "request": {
+        "application/json": {
+          "required": [
+
+          ],
+          "properties": [
+            "approval_password",
+            "publish_review",
+            "sha"
+          ]
+        }
+      },
+      "responses": [
+        "201",
+        "404",
+        "401",
+        "400"
+      ]
+    },
+    {
+      "method": "POST",
+      "path": "/api/v4/projects/{id}/merge_requests/{merge_request_iid}/unapprove",
+      "operation_id": "postApiV4ProjectsIdMergeRequestsMergeRequestIidUnapprove",
+      "request": {
+      },
+      "responses": [
+        "201",
+        "404",
+        "401",
+        "400"
+      ]
+    },
+    {
+      "method": "PUT",
+      "path": "/api/v4/projects/{id}/merge_requests/{merge_request_iid}/merge",
+      "operation_id": "putApiV4ProjectsIdMergeRequestsMergeRequestIidMerge",
+      "request": {
+        "application/json": {
+          "required": [
+
+          ],
+          "properties": [
+            "auto_merge",
+            "merge_commit_message",
+            "merge_when_pipeline_succeeds",
+            "sha",
+            "should_remove_source_branch",
+            "skip_merge_train",
+            "squash",
+            "squash_commit_message"
+          ]
+        }
+      },
+      "responses": [
+        "200",
+        "400",
+        "401",
+        "404",
+        "405",
+        "409",
+        "422"
+      ]
+    },
+    {
+      "method": "GET",
+      "path": "/api/v4/projects/{id}/merge_requests/{noteable_id}/notes",
+      "operation_id": "getApiV4ProjectsIdMergeRequestsNoteableIdNotes",
+      "request": {
+      },
+      "responses": [
+        "200",
+        "404",
+        "400"
+      ]
+    },
+    {
+      "method": "POST",
+      "path": "/api/v4/projects/{id}/merge_requests/{noteable_id}/notes",
+      "operation_id": "postApiV4ProjectsIdMergeRequestsNoteableIdNotes",
+      "request": {
+        "application/json": {
+          "required": [
+            "body"
+          ],
+          "properties": [
+            "body",
+            "confidential",
+            "created_at",
+            "internal",
+            "merge_request_diff_head_sha"
+          ]
+        }
+      },
+      "responses": [
+        "201",
+        "404",
+        "400"
+      ]
+    },
+    {
+      "method": "GET",
+      "path": "/api/v4/projects/{id}/merge_requests/{noteable_id}/notes/{note_id}",
+      "operation_id": "getApiV4ProjectsIdMergeRequestsNoteableIdNotesNoteId",
+      "request": {
+      },
+      "responses": [
+        "200",
+        "404",
+        "400"
+      ]
+    },
+    {
+      "method": "PUT",
+      "path": "/api/v4/projects/{id}/merge_requests/{noteable_id}/notes/{note_id}",
+      "operation_id": "putApiV4ProjectsIdMergeRequestsNoteableIdNotesNoteId",
+      "request": {
+        "application/json": {
+          "required": [
+
+          ],
+          "properties": [
+            "body",
+            "confidential"
+          ]
+        }
+      },
+      "responses": [
+        "200",
+        "404",
+        "400"
+      ]
+    },
+    {
+      "method": "DELETE",
+      "path": "/api/v4/projects/{id}/merge_requests/{noteable_id}/notes/{note_id}",
+      "operation_id": "deleteApiV4ProjectsIdMergeRequestsNoteableIdNotesNoteId",
+      "request": {
+      },
+      "responses": [
+        "200",
+        "404",
+        "400"
+      ]
+    },
+    {
+      "method": "GET",
+      "path": "/api/v4/projects/{id}/merge_requests/{noteable_id}/discussions",
+      "operation_id": "getApiV4ProjectsIdMergeRequestsNoteableIdDiscussions",
+      "request": {
+      },
+      "responses": [
+        "200",
+        "404",
+        "400"
+      ]
+    },
+    {
+      "method": "POST",
+      "path": "/api/v4/projects/{id}/merge_requests/{noteable_id}/discussions",
+      "operation_id": "postApiV4ProjectsIdMergeRequestsNoteableIdDiscussions",
+      "request": {
+        "application/json": {
+          "required": [
+            "body"
+          ],
+          "properties": [
+            "body",
+            "created_at",
+            "position"
+          ]
+        }
+      },
+      "responses": [
+        "201",
+        "404",
+        "400"
+      ]
+    },
+    {
+      "method": "PUT",
+      "path": "/api/v4/projects/{id}/merge_requests/{noteable_id}/discussions/{discussion_id}",
+      "operation_id": "putApiV4ProjectsIdMergeRequestsNoteableIdDiscussionsDiscussionId",
+      "request": {
+        "application/json": {
+          "required": [
+            "resolved"
+          ],
+          "properties": [
+            "resolved"
+          ]
+        }
+      },
+      "responses": [
+        "200",
+        "404",
+        "400"
+      ]
+    },
+    {
+      "method": "POST",
+      "path": "/api/v4/projects/{id}/merge_requests/{noteable_id}/discussions/{discussion_id}/notes",
+      "operation_id": "postApiV4ProjectsIdMergeRequestsNoteableIdDiscussionsDiscussionIdNotes",
+      "request": {
+        "application/json": {
+          "required": [
+            "body"
+          ],
+          "properties": [
+            "body",
+            "created_at"
+          ]
+        }
+      },
+      "responses": [
+        "201",
+        "404",
+        "400"
+      ]
+    },
+    {
+      "method": "GET",
+      "path": "/api/v4/projects/{id}/merge_requests/{merge_request_iid}/pipelines",
+      "operation_id": "getApiV4ProjectsIdMergeRequestsMergeRequestIidPipelines",
+      "request": {
+      },
+      "responses": [
+        "200",
+        "404",
+        "400"
+      ]
+    },
+    {
+      "method": "POST",
+      "path": "/api/v4/projects/{id}/merge_requests/{merge_request_iid}/pipelines",
+      "operation_id": "postApiV4ProjectsIdMergeRequestsMergeRequestIidPipelines",
+      "request": {
+        "application/json": {
+          "required": [
+
+          ],
+          "properties": [
+            "async"
+          ]
+        }
+      },
+      "responses": [
+        "201",
+        "400",
+        "404",
+        "405"
+      ]
+    },
+    {
+      "method": "GET",
+      "path": "/api/v4/projects/{id}/merge_requests/{merge_request_iid}",
+      "operation_id": "getApiV4ProjectsIdMergeRequestsMergeRequestIid",
+      "request": {
+      },
+      "responses": [
+        "200",
+        "404",
+        "400"
+      ]
+    },
+    {
+      "method": "PUT",
+      "path": "/api/v4/projects/{id}/merge_requests/{merge_request_iid}",
+      "operation_id": "putApiV4ProjectsIdMergeRequestsMergeRequestIid",
+      "request": {
+        "application/json": {
+          "required": [
+
+          ],
+          "properties": [
+            "add_labels",
+            "allow_collaboration",
+            "allow_maintainer_to_push",
+            "approval_rules_attributes",
+            "approvals_before_merge",
+            "assignee_id",
+            "assignee_ids",
+            "description",
+            "discussion_locked",
+            "labels",
+            "merge_after",
+            "milestone",
+            "milestone_id",
+            "remove_labels",
+            "remove_source_branch",
+            "reviewer_ids",
+            "squash",
+            "state_event",
+            "target_branch",
+            "title"
+          ]
+        }
+      },
+      "responses": [
+        "200",
+        "400",
+        "404",
+        "409",
+        "422"
+      ]
+    },
+    {
+      "method": "GET",
+      "path": "/api/v4/projects/{id}/pipelines/latest",
+      "operation_id": "getApiV4ProjectsIdPipelinesLatest",
+      "request": {
+      },
+      "responses": [
+        "200",
+        "401",
+        "403",
+        "404",
+        "400"
+      ]
+    },
+    {
+      "method": "GET",
+      "path": "/api/v4/projects/{id}/pipelines",
+      "operation_id": "getApiV4ProjectsIdPipelines",
+      "request": {
+      },
+      "responses": [
+        "200",
+        "401",
+        "403",
+        "404",
+        "400"
+      ]
+    },
+    {
+      "method": "POST",
+      "path": "/api/v4/projects/{id}/pipeline",
+      "operation_id": "postApiV4ProjectsIdPipeline",
+      "request": {
+        "application/json": {
+          "required": [
+            "ref"
+          ],
+          "properties": [
+            "inputs",
+            "ref",
+            "variables"
+          ]
+        }
+      },
+      "responses": [
+        "201",
+        "400",
+        "401",
+        "403",
+        "404"
+      ]
+    },
+    {
+      "method": "GET",
+      "path": "/api/v4/projects/{id}/pipelines/{pipeline_id}/jobs",
+      "operation_id": "getApiV4ProjectsIdPipelinesPipelineIdJobs",
+      "request": {
+      },
+      "responses": [
+        "200",
+        "401",
+        "403",
+        "404",
+        "400"
+      ]
+    },
+    {
+      "method": "POST",
+      "path": "/api/v4/projects/{id}/pipelines/{pipeline_id}/retry",
+      "operation_id": "postApiV4ProjectsIdPipelinesPipelineIdRetry",
+      "request": {
+      },
+      "responses": [
+        "201",
+        "401",
+        "403",
+        "404",
+        "400"
+      ]
+    },
+    {
+      "method": "POST",
+      "path": "/api/v4/projects/{id}/pipelines/{pipeline_id}/cancel",
+      "operation_id": "postApiV4ProjectsIdPipelinesPipelineIdCancel",
+      "request": {
+      },
+      "responses": [
+        "201",
+        "401",
+        "403",
+        "404",
+        "400"
+      ]
+    },
+    {
+      "method": "GET",
+      "path": "/api/v4/projects/{id}/pipelines/{pipeline_id}",
+      "operation_id": "getApiV4ProjectsIdPipelinesPipelineId",
+      "request": {
+      },
+      "responses": [
+        "200",
+        "401",
+        "403",
+        "404",
+        "400"
+      ]
+    },
+    {
+      "method": "GET",
+      "path": "/api/v4/projects/{id}/jobs",
+      "operation_id": "getApiV4ProjectsIdJobs",
+      "request": {
+      },
+      "responses": [
+        "200",
+        "401",
+        "403",
+        "404",
+        "400"
+      ]
+    },
+    {
+      "method": "GET",
+      "path": "/api/v4/projects/{id}/jobs/{job_id}/trace",
+      "operation_id": "getApiV4ProjectsIdJobsJobIdTrace",
+      "request": {
+      },
+      "responses": [
+        "200",
+        "401",
+        "403",
+        "404",
+        "400"
+      ]
+    },
+    {
+      "method": "POST",
+      "path": "/api/v4/projects/{id}/jobs/{job_id}/retry",
+      "operation_id": "postApiV4ProjectsIdJobsJobIdRetry",
+      "request": {
+        "application/json": {
+          "required": [
+
+          ],
+          "properties": [
+            "inputs"
+          ]
+        }
+      },
+      "responses": [
+        "201",
+        "401",
+        "403",
+        "404",
+        "400"
+      ]
+    },
+    {
+      "method": "POST",
+      "path": "/api/v4/projects/{id}/jobs/{job_id}/cancel",
+      "operation_id": "postApiV4ProjectsIdJobsJobIdCancel",
+      "request": {
+        "application/json": {
+          "required": [
+
+          ],
+          "properties": [
+            "force"
+          ]
+        }
+      },
+      "responses": [
+        "201",
+        "401",
+        "403",
+        "404",
+        "400"
+      ]
+    },
+    {
+      "method": "POST",
+      "path": "/api/v4/projects/{id}/jobs/{job_id}/play",
+      "operation_id": "postApiV4ProjectsIdJobsJobIdPlay",
+      "request": {
+        "application/json": {
+          "required": [
+
+          ],
+          "properties": [
+            "job_inputs",
+            "job_variables_attributes"
+          ]
+        }
+      },
+      "responses": [
+        "200",
+        "400",
+        "401",
+        "403",
+        "404"
+      ]
+    },
+    {
+      "method": "GET",
+      "path": "/api/v4/projects/{id}/jobs/{job_id}",
+      "operation_id": "getApiV4ProjectsIdJobsJobId",
+      "request": {
+      },
+      "responses": [
+        "200",
+        "401",
+        "403",
+        "404",
+        "400"
+      ]
+    },
+    {
+      "method": "GET",
+      "path": "/api/v4/projects/{id}/repository/commits/{sha}/statuses",
+      "operation_id": "getApiV4ProjectsIdRepositoryCommitsShaStatuses",
+      "request": {
+      },
+      "responses": [
+        "200",
+        "401",
+        "403",
+        "404",
+        "400"
+      ]
+    },
+    {
+      "method": "POST",
+      "path": "/api/v4/projects/{id}/statuses/{sha}",
+      "operation_id": "postApiV4ProjectsIdStatusesSha",
+      "request": {
+        "application/json": {
+          "required": [
+            "state"
+          ],
+          "properties": [
+            "context",
+            "coverage",
+            "description",
+            "name",
+            "pipeline_id",
+            "ref",
+            "state",
+            "target_url"
+          ]
+        }
+      },
+      "responses": [
+        "200",
+        "400",
+        "401",
+        "403",
+        "404",
+        "409"
+      ]
+    },
+    {
+      "method": "GET",
+      "path": "/api/v4/projects/{id}/releases",
+      "operation_id": "getApiV4ProjectsIdReleases",
+      "request": {
+      },
+      "responses": [
+        "200",
+        "404",
+        "400"
+      ]
+    },
+    {
+      "method": "POST",
+      "path": "/api/v4/projects/{id}/releases",
+      "operation_id": "postApiV4ProjectsIdReleases",
+      "request": {
+        "application/json": {
+          "required": [
+            "tag_name"
+          ],
+          "properties": [
+            "assets",
+            "description",
+            "legacy_catalog_publish",
+            "milestone_ids",
+            "milestones",
+            "name",
+            "ref",
+            "released_at",
+            "tag_message",
+            "tag_name"
+          ]
+        }
+      },
+      "responses": [
+        "201",
+        "400",
+        "401",
+        "403",
+        "404",
+        "409",
+        "422"
+      ]
+    },
+    {
+      "method": "GET",
+      "path": "/api/v4/projects/{id}/releases/{tag_name}",
+      "operation_id": "getApiV4ProjectsIdReleasesTagName",
+      "request": {
+      },
+      "responses": [
+        "200",
+        "401",
+        "404",
+        "400"
+      ]
+    },
+    {
+      "method": "PUT",
+      "path": "/api/v4/projects/{id}/releases/{tag_name}",
+      "operation_id": "putApiV4ProjectsIdReleasesTagName",
+      "request": {
+        "application/json": {
+          "required": [
+
+          ],
+          "properties": [
+            "description",
+            "milestone_ids",
+            "milestones",
+            "name",
+            "released_at"
+          ]
+        }
+      },
+      "responses": [
+        "200",
+        "400",
+        "401",
+        "403",
+        "404"
+      ]
+    },
+    {
+      "method": "DELETE",
+      "path": "/api/v4/projects/{id}/releases/{tag_name}",
+      "operation_id": "deleteApiV4ProjectsIdReleasesTagName",
+      "request": {
+      },
+      "responses": [
+        "200",
+        "400",
+        "401",
+        "403",
+        "404"
+      ]
+    }
+  ]
+}
+

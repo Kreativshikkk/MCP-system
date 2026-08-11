@@ -1,0 +1,9 @@
+from .dispatcher import SurfaceSpec,ToolSpec
+S={"type":"string","minLength":1};I={"type":"integer","minimum":1}
+def youtrack_rest_surface():
+ specs=(("get_current_user",{},(),1),("list_users",{},(),1),("list_projects",{},(),1),("get_project",{"projectId":S},("projectId",),1),("list_issues",{"query":S},(),1),("create_issue",{"projectId":S,"summary":S,"description":S,"assignee":S,"priority":S},("projectId","summary"),0),("get_issue",{"issueId":S},("issueId",),1),("update_issue",{"issueId":S,"summary":S,"description":S,"assignee":S,"priority":S},("issueId",),0),("apply_command",{"issueId":S,"query":S},("issueId","query"),0),("list_comments",{"issueId":S},("issueId",),1),("create_comment",{"issueId":S,"text":S},("issueId","text"),0),("list_links",{"issueId":S},("issueId",),1),("create_link",{"issueId":S,"relatedIssueId":S,"linkType":S},("issueId","relatedIssueId","linkType"),0),("list_agiles",{},(),1),("list_sprints",{"agileId":S},("agileId",),1),("create_sprint",{"agileId":S,"name":S,"goal":S,"startAt":S,"finishAt":S},("agileId","name"),0),("update_sprint",{"agileId":S,"sprintId":S,"name":S,"goal":S,"archived":{"type":"boolean"}},("agileId","sprintId"),0),("list_work_items",{"issueId":S},("issueId",),1),("create_work_item",{"issueId":S,"durationMinutes":I,"text":S},("issueId","durationMinutes"),0),("list_vcs_changes",{"issueId":S},("issueId",),1))
+ return SurfaceSpec("youtrack_rest","youtrack",tuple(_t(*x) for x in specs))
+def _t(op,p,r,read):
+ schema={"type":"object","properties":p,"additionalProperties":False};
+ if r:schema["required"]=list(r)
+ ren={k:"".join(("_"+c.lower()) if c.isupper() else c for c in k) for k in p};return ToolSpec(name=f"youtrack_{op}",title=op.replace("_"," ").title(),description=f"YouTrack REST API: {op.replace('_',' ')}.",input_schema=schema,operation=op,argument_renames=ren,read_only=bool(read),idempotent=bool(read))

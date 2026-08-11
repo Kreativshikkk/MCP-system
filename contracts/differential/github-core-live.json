@@ -1,0 +1,51 @@
+{
+  "version":1,
+  "name":"github-core-live",
+  "safety":{"disposableOnly":true},
+  "variables":{"real_owner":"Kreativshikkk","real_repo":"mcp-system-test","owner":"acme","repo":"product"},
+  "steps":[
+    {
+      "id":"get-repository",
+      "real":{"method":"GET","path":"/repos/${real_owner}/${real_repo}"},
+      "replica":{"operation":"get_repository","arguments":{"owner":"${owner}","repository":"${repo}"}},
+      "expect":{"real_status":200},
+      "compare":{"semantic_paths":["$.default_branch"]}
+    },
+    {
+      "id":"create-label",
+      "real":{"method":"POST","path":"/repos/${real_owner}/${real_repo}/labels","json":{"name":"differential-${run_id}","color":"428bca","description":"Differential contract label"}},
+      "replica":{"operation":"create_label","arguments":{"owner":"${owner}","repository":"${repo}","name":"differential-${run_id}","color":"428bca","description":"Differential contract label"}},
+      "expect":{"real_status":201},
+      "compare":{"semantic_paths":["$.name","$.color","$.description"]}
+    },
+    {
+      "id":"create-issue",
+      "real":{"method":"POST","path":"/repos/${real_owner}/${real_repo}/issues","json":{"title":"Differential issue ${run_id}","body":"Created by MCPSystem differential suite","labels":["differential-${run_id}"]}},
+      "replica":{"operation":"create_issue","arguments":{"owner":"${owner}","repository":"${repo}","title":"Differential issue ${run_id}","body":"Created by MCPSystem differential suite","labels":["differential-${run_id}"]}},
+      "expect":{"real_status":201},
+      "capture":{"real":{"issue_number":"$.number"},"replica":{"issue_number":"$.number"}},
+      "compare":{"ignore_shape_fields":["name","email"],"semantic_paths":["$.title","$.body","$.state"]}
+    },
+    {
+      "id":"create-comment",
+      "real":{"method":"POST","path":"/repos/${real_owner}/${real_repo}/issues/${issue_number}/comments","json":{"body":"Differential comment ${run_id}"}},
+      "replica":{"operation":"create_comment","arguments":{"owner":"${owner}","repository":"${repo}","issue_number":"${issue_number}","body":"Differential comment ${run_id}"}},
+      "expect":{"real_status":201},
+      "compare":{"semantic_paths":["$.body"]}
+    },
+    {
+      "id":"close-issue",
+      "real":{"method":"PATCH","path":"/repos/${real_owner}/${real_repo}/issues/${issue_number}","json":{"state":"closed","state_reason":"completed"}},
+      "replica":{"operation":"update_issue","arguments":{"owner":"${owner}","repository":"${repo}","issue_number":"${issue_number}","state":"closed","state_reason":"completed"}},
+      "expect":{"real_status":200},
+      "compare":{"ignore_shape_fields":["name","email"],"semantic_paths":["$.title","$.body","$.state","$.state_reason"]}
+    },
+    {
+      "id":"remove-issue-label",
+      "real":{"method":"DELETE","path":"/repos/${real_owner}/${real_repo}/issues/${issue_number}/labels/differential-${run_id}"},
+      "replica":{"operation":"remove_issue_label","arguments":{"owner":"${owner}","repository":"${repo}","issue_number":"${issue_number}","name":"differential-${run_id}"}},
+      "expect":{"real_status":200},
+      "compare":{"body":false}
+    }
+  ]
+}

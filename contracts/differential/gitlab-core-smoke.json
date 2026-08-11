@@ -1,0 +1,90 @@
+{
+  "version": 1,
+  "name": "gitlab-core-smoke",
+  "variables": {
+    "project": "acme/product",
+    "project_encoded": "acme%2Fproduct"
+  },
+  "steps": [
+    {
+      "id": "get_project",
+      "request": {"method": "GET", "path": "/projects/${project_encoded}"},
+      "expect": {"status": 200},
+      "compare": {"semantic_paths": ["$.name", "$.path", "$.path_with_namespace", "$.visibility", "$.default_branch"]}
+    },
+    {
+      "id": "create_label",
+      "request": {
+        "method": "POST",
+        "path": "/projects/${project_encoded}/labels",
+        "json": {"name": "differential-${run_id}", "color": "#428BCA", "description": "Differential contract label"}
+      },
+      "expect": {"status": 201},
+      "compare": {"semantic_paths": ["$.name", "$.color", "$.description"]}
+    },
+    {
+      "id": "create_issue",
+      "request": {
+        "method": "POST",
+        "path": "/projects/${project_encoded}/issues",
+        "json": {"title": "Differential issue ${run_id}", "description": "Created by the differential suite", "labels": "differential-${run_id}"}
+      },
+      "expect": {"status": 201},
+      "capture": {"issue_iid": "$.iid"},
+      "compare": {"semantic_paths": ["$.title", "$.description", "$.state", "$.labels"]}
+    },
+    {
+      "id": "list_issues_paginated",
+      "request": {
+        "method": "GET",
+        "path": "/projects/${project_encoded}/issues",
+        "query": {"state": "opened", "page": 1, "per_page": 1}
+      },
+      "expect": {"status": 200},
+      "compare": {
+        "semantic_paths": ["$.0.title", "$.0.state"],
+        "headers": ["x-page", "x-per-page", "x-total", "x-total-pages", "x-next-page", "x-prev-page"]
+      }
+    },
+    {
+      "id": "create_issue_note",
+      "request": {
+        "method": "POST",
+        "path": "/projects/${project_encoded}/issues/${issue_iid}/notes",
+        "json": {"body": "Differential note ${run_id}"}
+      },
+      "expect": {"status": 201},
+      "compare": {"semantic_paths": ["$.body", "$.system", "$.noteable_type"]}
+    },
+    {
+      "id": "close_issue",
+      "request": {
+        "method": "PUT",
+        "path": "/projects/${project_encoded}/issues/${issue_iid}",
+        "json": {"state_event": "close"}
+      },
+      "expect": {"status": 200},
+      "compare": {"semantic_paths": ["$.title", "$.state", "$.labels"]}
+    },
+    {
+      "id": "missing_project_error",
+      "request": {"method": "GET", "path": "/projects/missing-${run_id}"},
+      "expect": {"status": 404},
+      "compare": {"semantic_paths": ["$.message"]}
+    },
+    {
+      "id": "delete_issue",
+      "request": {"method": "DELETE", "path": "/projects/${project_encoded}/issues/${issue_iid}"},
+      "expect": {"status": 204}
+    },
+    {
+      "id": "delete_label",
+      "request": {
+        "method": "DELETE",
+        "path": "/projects/${project_encoded}/labels",
+        "json": {"name": "differential-${run_id}"}
+      },
+      "expect": {"status": 204}
+    }
+  ]
+}

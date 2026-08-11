@@ -1,0 +1,46 @@
+[template]
+id = "jira_default"
+name = "Jira software company bootstrap"
+version = "1.0.0"
+mcp_surfaces = ["jira_rest_v3"]
+
+[[services]]
+instance_id = "jira"
+plugin = "jira"
+version = "0.1.0"
+
+[services.seed]
+created_at = "2026-01-01T00:00:00+00:00"
+
+[[services.seed.users]]
+account_id = "director"
+display_name = "Director"
+email = "director@acme.local"
+admin = true
+role = "Administrator"
+
+[[services.seed.users]]
+account_id = "lead"
+display_name = "Team Lead"
+email = "lead@acme.local"
+role = "Administrator"
+
+[[services.seed.users]]
+account_id = "engineer"
+display_name = "Software Engineer"
+email = "engineer@acme.local"
+role = "Member"
+
+[[services.seed.users]]
+account_id = "qa"
+display_name = "QA Engineer"
+email = "qa@acme.local"
+role = "Member"
+
+[[services.seed.projects]]
+key = "PROD"
+name = "Product"
+description = "Primary product delivery project"
+lead = "lead"
+board_name = "Product delivery"
+board_type = "scrum"

@@ -1,0 +1,9 @@
+{
+  "apiStyle": "GraphQL",
+  "canonicalSource": "https://linear.app/developers/graphql",
+  "retrievedAt": "2026-08-07",
+  "sourceRevision": null,
+  "sourceSha256": "057736cf75b83075fd2dfb5276c93e9777fec8c881eb4b0082b4f480d3c8561a",
+  "scope": "Identity, teams, workflow states, labels, projects, cycles, issues, comments and issue relations",
+  "excluded": ["OAuth and webhooks", "documents", "initiatives", "roadmaps", "attachments", "integrations", "administration"]
+}

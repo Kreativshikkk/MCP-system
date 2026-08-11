@@ -1,0 +1,16 @@
+{
+  "version": 2,
+  "name": "gitlab-core-live",
+  "safety": {"disposableOnly": true},
+  "variables": {"project": "acme/product", "project_encoded": "acme%2Fproduct"},
+  "steps": [
+    {"id":"get-project","real":{"method":"GET","path":"/projects/${project_encoded}"},"replica":{"operation":"get_project","arguments":{"project":"${project}"}},"expect":{"real_status":200},"compare":{"semantic_paths":["$.name","$.path","$.path_with_namespace","$.visibility","$.default_branch"]}},
+    {"id":"create-label","real":{"method":"POST","path":"/projects/${project_encoded}/labels","json":{"name":"differential-${run_id}","color":"#428BCA","description":"Differential contract label"}},"replica":{"operation":"create_label","arguments":{"project":"${project}","name":"differential-${run_id}","color":"#428BCA","description":"Differential contract label"}},"expect":{"real_status":201},"compare":{"semantic_paths":["$.name","$.color","$.description"]}},
+    {"id":"create-issue","real":{"method":"POST","path":"/projects/${project_encoded}/issues","json":{"title":"Differential issue ${run_id}","description":"Created by the differential suite","labels":"differential-${run_id}"}},"replica":{"operation":"create_issue","arguments":{"project":"${project}","title":"Differential issue ${run_id}","description":"Created by the differential suite","labels":"differential-${run_id}"}},"expect":{"real_status":201},"capture":{"real":{"issue_iid":"$.iid"},"replica":{"issue_iid":"$.iid"}},"compare":{"semantic_paths":["$.title","$.description","$.state","$.labels"]}},
+    {"id":"create-note","real":{"method":"POST","path":"/projects/${project_encoded}/issues/${issue_iid}/notes","json":{"body":"Differential note ${run_id}"}},"replica":{"operation":"create_issue_note","arguments":{"project":"${project}","issue_iid":"${issue_iid}","body":"Differential note ${run_id}"}},"expect":{"real_status":201},"compare":{"semantic_paths":["$.body","$.system","$.noteable_type"]}},
+    {"id":"close-issue","real":{"method":"PUT","path":"/projects/${project_encoded}/issues/${issue_iid}","json":{"state_event":"close"}},"replica":{"operation":"update_issue","arguments":{"project":"${project}","issue_iid":"${issue_iid}","state_event":"close"}},"expect":{"real_status":200},"compare":{"semantic_paths":["$.title","$.state","$.labels"]}},
+    {"id":"missing-project","real":{"method":"GET","path":"/projects/missing-${run_id}"},"replica":{"operation":"get_project","arguments":{"project":"missing-${run_id}"}},"expect":{"real_status":404,"replica_status":404},"compare":{"body":false,"compare_status":true}},
+    {"id":"delete-issue","real":{"method":"DELETE","path":"/projects/${project_encoded}/issues/${issue_iid}"},"replica":{"operation":"delete_issue","arguments":{"project":"${project}","issue_iid":"${issue_iid}"}},"expect":{"real_status":204},"compare":{"body":false}},
+    {"id":"delete-label","real":{"method":"DELETE","path":"/projects/${project_encoded}/labels","json":{"name":"differential-${run_id}"}},"replica":{"operation":"delete_label","arguments":{"project":"${project}","name":"differential-${run_id}"}},"expect":{"real_status":204},"compare":{"body":false}}
+  ]
+}

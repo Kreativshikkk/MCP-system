@@ -1,0 +1,64 @@
+{
+  "version": 1,
+  "name": "gitlab-engineering-live",
+  "safety": {"disposableOnly": true},
+  "variables": {"project":"acme/product","project_encoded":"acme%2Fproduct"},
+  "steps": [
+    {
+      "id":"create-base-commit",
+      "real":{"method":"POST","path":"/projects/${project_encoded}/repository/commits","json":{"branch":"diff-base-${run_id}","start_branch":"main","commit_message":"Differential base ${run_id}","actions":[{"action":"create","file_path":"differential-${run_id}.txt","content":"base\n"},{"action":"create","file_path":".gitlab-ci.yml","content":"test:\n  script: echo ok\n"}]}},
+      "replica":{"operation":"create_repository_commit","arguments":{"project":"${project}","branch":"diff-base-${run_id}","commit_message":"Differential base ${run_id}","actions":[{"action":"create","file_path":"differential-${run_id}.txt","content":"base\n"},{"action":"create","file_path":".gitlab-ci.yml","content":"test:\n  script: echo ok\n"}]}},
+      "expect":{"real_status":201},"compare":{"semantic_paths":["$.title","$.message"]}
+    },
+    {
+      "id":"create-feature-commit",
+      "real":{"method":"POST","path":"/projects/${project_encoded}/repository/commits","json":{"branch":"diff-feature-${run_id}","start_branch":"diff-base-${run_id}","commit_message":"Differential feature ${run_id}","actions":[{"action":"update","file_path":"differential-${run_id}.txt","content":"base\nfeature\n"}]}},
+      "replica":{"operation":"create_repository_commit","arguments":{"project":"${project}","branch":"diff-feature-${run_id}","start_branch":"diff-base-${run_id}","commit_message":"Differential feature ${run_id}","actions":[{"action":"update","file_path":"differential-${run_id}.txt","content":"base\nfeature\n"}]}},
+      "expect":{"real_status":201},"capture":{"real":{"feature_sha":"$.id"},"replica":{"feature_sha":"$.id"}},"compare":{"semantic_paths":["$.title","$.message"]}
+    },
+    {
+      "id":"read-feature-file",
+      "real":{"method":"GET","path":"/projects/${project_encoded}/repository/files/differential-${run_id}.txt","query":{"ref":"diff-feature-${run_id}"}},
+      "replica":{"operation":"get_repository_file","arguments":{"project":"${project}","file_path":"differential-${run_id}.txt","ref":"diff-feature-${run_id}"}},
+      "expect":{"real_status":200},"compare":{"semantic_paths":["$.file_name","$.file_path","$.size","$.encoding","$.content"]}
+    },
+    {
+      "id":"create-merge-request",
+      "real":{"method":"POST","path":"/projects/${project_encoded}/merge_requests","json":{"title":"Differential MR ${run_id}","description":"Engineering lifecycle differential","source_branch":"diff-feature-${run_id}","target_branch":"diff-base-${run_id}"}},
+      "replica":{"operation":"create_merge_request","arguments":{"project":"${project}","title":"Differential MR ${run_id}","description":"Engineering lifecycle differential","source_branch":"diff-feature-${run_id}","target_branch":"diff-base-${run_id}"}},
+      "expect":{"real_status":201},"capture":{"real":{"mr_iid":"$.iid"},"replica":{"mr_iid":"$.iid"}},"compare":{"ignore_shape_fields":["diff_refs"],"semantic_paths":["$.title","$.description","$.state","$.source_branch","$.target_branch","$.draft"]}
+    },
+    {
+      "id":"get-merge-request-diff",
+      "real":{"method":"GET","path":"/projects/${project_encoded}/merge_requests/${mr_iid}/changes"},
+      "replica":{"operation":"get_merge_request_changes","arguments":{"project":"${project}","merge_request_iid":"${mr_iid}"}},
+      "expect":{"real_status":200},"compare":{"ignore_shape_fields":["diff_refs"],"semantic_paths":["$.title","$.state","$.source_branch","$.target_branch","$.overflow"]}
+    },
+    {
+      "id":"create-review-note",
+      "real":{"method":"POST","path":"/projects/${project_encoded}/merge_requests/${mr_iid}/notes","json":{"body":"Reviewed differential ${run_id}"}},
+      "replica":{"operation":"create_merge_request_note","arguments":{"project":"${project}","merge_request_iid":"${mr_iid}","body":"Reviewed differential ${run_id}"}},
+      "expect":{"real_status":201},"compare":{"semantic_paths":["$.body","$.system","$.noteable_type"]}
+    },
+    {
+      "id":"create-pipeline",
+      "real":{"method":"POST","path":"/projects/${project_encoded}/pipeline","json":{"ref":"diff-feature-${run_id}"}},
+      "replica":{"operation":"create_pipeline","arguments":{"project":"${project}","ref":"diff-feature-${run_id}"}},
+      "expect":{"real_status":201},"capture":{"real":{"pipeline_id":"$.id"},"replica":{"pipeline_id":"$.id"}},"compare":{"semantic_paths":["$.ref","$.source"]}
+    },
+    {
+      "id":"list-pipeline-jobs",
+      "real":{"method":"GET","path":"/projects/${project_encoded}/pipelines/${pipeline_id}/jobs"},
+      "replica":{"operation":"list_pipeline_jobs","arguments":{"project":"${project}","pipeline_id":"${pipeline_id}"}},
+      "expect":{"real_status":200},"compare":{"body":false}
+    },
+    {
+      "id":"close-merge-request",
+      "real":{"method":"PUT","path":"/projects/${project_encoded}/merge_requests/${mr_iid}","json":{"state_event":"close"}},
+      "replica":{"operation":"update_merge_request","arguments":{"project":"${project}","merge_request_iid":"${mr_iid}","state_event":"close"}},
+      "expect":{"real_status":200},"compare":{"semantic_paths":["$.title","$.state","$.source_branch","$.target_branch"]}
+    },
+    {"id":"delete-feature-branch","real":{"method":"DELETE","path":"/projects/${project_encoded}/repository/branches/diff-feature-${run_id}"},"replica":{"operation":"delete_branch","arguments":{"project":"${project}","branch":"diff-feature-${run_id}"}},"expect":{"real_status":204},"compare":{"body":false}},
+    {"id":"delete-base-branch","real":{"method":"DELETE","path":"/projects/${project_encoded}/repository/branches/diff-base-${run_id}"},"replica":{"operation":"delete_branch","arguments":{"project":"${project}","branch":"diff-base-${run_id}"}},"expect":{"real_status":204},"compare":{"body":false}}
+  ]
+}

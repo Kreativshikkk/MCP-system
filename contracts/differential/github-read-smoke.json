@@ -1,0 +1,1 @@
+{"name":"github-read-smoke","steps":[{"id":"current-user","real":{"method":"GET","path":"/user"},"replica":{"operation":"get_authenticated_user"},"expect":{"real_status":200}}]}

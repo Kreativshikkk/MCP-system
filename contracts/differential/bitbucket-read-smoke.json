@@ -1,0 +1,1 @@
+{"name":"bitbucket-read-smoke","steps":[{"id":"current-user","real":{"method":"GET","path":"/user"},"replica":{"operation":"get_current_user"},"expect":{"real_status":200}}]}

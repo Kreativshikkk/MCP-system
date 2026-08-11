@@ -1,0 +1,32 @@
+[template]
+id="youtrack_default"
+name="YouTrack software company bootstrap"
+version="1.0.0"
+mcp_surfaces=["youtrack_rest"]
+[[services]]
+instance_id="youtrack"
+plugin="youtrack"
+version="0.1.0"
+[services.seed.project]
+short_name="PROD"
+name="Product"
+leader_id="user-2"
+board_name="Product Board"
+[[services.seed.users]]
+login="director"
+full_name="Director"
+email="director@acme.local"
+admin=true
+[[services.seed.users]]
+login="lead"
+full_name="Team Lead"
+email="lead@acme.local"
+admin=true
+[[services.seed.users]]
+login="engineer"
+full_name="Software Engineer"
+email="engineer@acme.local"
+[[services.seed.users]]
+login="qa"
+full_name="QA Engineer"
+email="qa@acme.local"

@@ -1,0 +1,27 @@
+{
+  "provider": "Linear",
+  "apiStyle": "GraphQL",
+  "sourceSha256": "057736cf75b83075fd2dfb5276c93e9777fec8c881eb4b0082b4f480d3c8561a",
+  "operations": [
+    {"field":"viewer","kind":"query","workflow":"identity","localOperation":"get_viewer","mcpTool":"linear_get_viewer","required":[]},
+    {"field":"users","kind":"query","workflow":"identity","localOperation":"list_users","mcpTool":"linear_list_users","required":[]},
+    {"field":"teams","kind":"query","workflow":"team","localOperation":"list_teams","mcpTool":"linear_list_teams","required":[]},
+    {"field":"workflowStates","kind":"query","workflow":"team","localOperation":"list_workflow_states","mcpTool":"linear_list_workflow_states","required":["teamId"]},
+    {"field":"issueLabels","kind":"query","workflow":"triage","localOperation":"list_issue_labels","mcpTool":"linear_list_issue_labels","required":["teamId"]},
+    {"field":"projects","kind":"query","workflow":"project","localOperation":"list_projects","mcpTool":"linear_list_projects","required":[]},
+    {"field":"project","kind":"query","workflow":"project","localOperation":"get_project","mcpTool":"linear_get_project","required":["id"]},
+    {"field":"projectCreate","kind":"mutation","workflow":"project","localOperation":"create_project","mcpTool":"linear_create_project","required":["teamId","name"]},
+    {"field":"projectUpdate","kind":"mutation","workflow":"project","localOperation":"update_project","mcpTool":"linear_update_project","required":["id"]},
+    {"field":"cycles","kind":"query","workflow":"cycle","localOperation":"list_cycles","mcpTool":"linear_list_cycles","required":["teamId"]},
+    {"field":"cycleCreate","kind":"mutation","workflow":"cycle","localOperation":"create_cycle","mcpTool":"linear_create_cycle","required":["teamId","name"]},
+    {"field":"cycleUpdate","kind":"mutation","workflow":"cycle","localOperation":"update_cycle","mcpTool":"linear_update_cycle","required":["id"]},
+    {"field":"issues","kind":"query","workflow":"issue","localOperation":"list_issues","mcpTool":"linear_list_issues","required":["teamId"]},
+    {"field":"issue","kind":"query","workflow":"issue","localOperation":"get_issue","mcpTool":"linear_get_issue","required":["id"]},
+    {"field":"issueCreate","kind":"mutation","workflow":"issue","localOperation":"create_issue","mcpTool":"linear_create_issue","required":["teamId","title"]},
+    {"field":"issueUpdate","kind":"mutation","workflow":"issue","localOperation":"update_issue","mcpTool":"linear_update_issue","required":["id"]},
+    {"field":"issueArchive","kind":"mutation","workflow":"issue","localOperation":"archive_issue","mcpTool":"linear_archive_issue","required":["id"]},
+    {"field":"comments","kind":"query","workflow":"collaboration","localOperation":"list_comments","mcpTool":"linear_list_comments","required":["issueId"]},
+    {"field":"commentCreate","kind":"mutation","workflow":"collaboration","localOperation":"create_comment","mcpTool":"linear_create_comment","required":["issueId","body"]},
+    {"field":"issueRelationCreate","kind":"mutation","workflow":"dependency","localOperation":"create_issue_relation","mcpTool":"linear_create_issue_relation","required":["issueId","relatedIssueId","type"]}
+  ]
+}

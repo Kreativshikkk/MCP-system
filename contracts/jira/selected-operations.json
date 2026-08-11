@@ -1,0 +1,35 @@
+{
+  "surface": "jira_rest_v3",
+  "version": "0.1.0",
+  "operations": [
+    {"api":"platform","operationId":"getCurrentUser","method":"get","path":"/rest/api/3/myself","workflow":"identity","local":"get_current_user","tool":"jira_get_current_user","success":[200],"errors":[401],"response":"User","readOnly":true},
+    {"api":"platform","operationId":"getAllUsers","method":"get","path":"/rest/api/3/users/search","workflow":"membership","local":"list_users","tool":"jira_list_users","success":[200],"errors":[400,403,409],"response":"User[]","readOnly":true,"pagination":"startAt/maxResults"},
+    {"api":"platform","operationId":"searchProjects","method":"get","path":"/rest/api/3/project/search","workflow":"project discovery","local":"list_projects","tool":"jira_list_projects","success":[200],"errors":[400,401,404],"response":"PageBeanProject","readOnly":true,"pagination":"startAt/maxResults"},
+    {"api":"platform","operationId":"getProject","method":"get","path":"/rest/api/3/project/{projectIdOrKey}","workflow":"project discovery","local":"get_project","tool":"jira_get_project","success":[200],"errors":[401,404],"response":"Project","readOnly":true},
+    {"api":"platform","operationId":"getPriorities","method":"get","path":"/rest/api/3/priority","workflow":"issue authoring and triage","local":"list_priorities","tool":"jira_list_priorities","success":[200],"errors":[401],"response":"Priority[]","readOnly":true},
+    {"api":"platform","operationId":"getIssueAllTypes","method":"get","path":"/rest/api/3/issuetype","workflow":"issue authoring","local":"list_issue_types","tool":"jira_list_issue_types","success":[200],"errors":[],"response":"IssueTypeDetails[]","readOnly":true},
+    {"api":"platform","operationId":"searchAndReconsileIssuesUsingJqlPost","method":"post","path":"/rest/api/3/search/jql","workflow":"triage and standup discovery","local":"search_issues","tool":"jira_search_issues","success":[200],"errors":[400,401],"request":"SearchAndReconcileRequestBean","response":"SearchAndReconcileResults","readOnly":true,"pagination":"nextPageToken/maxResults"},
+    {"api":"platform","operationId":"createIssue","method":"post","path":"/rest/api/3/issue","workflow":"ticket creation","local":"create_issue","tool":"jira_create_issue","success":[201],"errors":[400,401,403,422],"request":"IssueUpdateDetails","response":"CreatedIssue","readOnly":false},
+    {"api":"platform","operationId":"getIssue","method":"get","path":"/rest/api/3/issue/{issueIdOrKey}","workflow":"ticket execution","local":"get_issue","tool":"jira_get_issue","success":[200],"errors":[401,404],"response":"IssueBean","readOnly":true},
+    {"api":"platform","operationId":"editIssue","method":"put","path":"/rest/api/3/issue/{issueIdOrKey}","workflow":"triage and assignment","local":"update_issue","tool":"jira_update_issue","success":[200,204],"errors":[400,401,403,404,409,422],"request":"IssueUpdateDetails","readOnly":false},
+    {"api":"platform","operationId":"getTransitions","method":"get","path":"/rest/api/3/issue/{issueIdOrKey}/transitions","workflow":"ticket lifecycle","local":"list_transitions","tool":"jira_list_transitions","success":[200],"errors":[401,404],"response":"Transitions","readOnly":true},
+    {"api":"platform","operationId":"doTransition","method":"post","path":"/rest/api/3/issue/{issueIdOrKey}/transitions","workflow":"ticket lifecycle","local":"transition_issue","tool":"jira_transition_issue","success":[204],"errors":[400,401,404,409,413,422],"request":"IssueUpdateDetails","readOnly":false},
+    {"api":"platform","operationId":"getComments","method":"get","path":"/rest/api/3/issue/{issueIdOrKey}/comment","workflow":"collaboration","local":"list_comments","tool":"jira_list_comments","success":[200],"errors":[400,401,404],"response":"PageOfComments","readOnly":true,"pagination":"startAt/maxResults"},
+    {"api":"platform","operationId":"addComment","method":"post","path":"/rest/api/3/issue/{issueIdOrKey}/comment","workflow":"collaboration","local":"add_comment","tool":"jira_add_comment","success":[201],"errors":[400,401,404,413],"request":"Comment","response":"Comment","readOnly":false},
+    {"api":"platform","operationId":"linkIssues","method":"post","path":"/rest/api/3/issueLink","workflow":"dependency tracking","local":"create_issue_link","tool":"jira_create_issue_link","success":[201],"errors":[400,401,404,413],"request":"LinkIssueRequestJsonBean","readOnly":false,"idempotent":true},
+    {"api":"software","operationId":"getAllBoards","method":"get","path":"/rest/agile/1.0/board","workflow":"planning","local":"list_boards","tool":"jira_list_boards","success":[200],"errors":[400,401,403],"response":"board page","readOnly":true,"pagination":"startAt/maxResults"},
+    {"api":"software","operationId":"getAllSprints","method":"get","path":"/rest/agile/1.0/board/{boardId}/sprint","workflow":"planning","local":"list_sprints","tool":"jira_list_sprints","success":[200],"errors":[400,401,403,404],"response":"sprint page","readOnly":true,"pagination":"startAt/maxResults"},
+    {"api":"software","operationId":"createSprint","method":"post","path":"/rest/agile/1.0/sprint","workflow":"milestone cadence","local":"create_sprint","tool":"jira_create_sprint","success":[201],"errors":[400,401,403,404],"request":"sprint","response":"sprint","readOnly":false},
+    {"api":"software","operationId":"getSprint","method":"get","path":"/rest/agile/1.0/sprint/{sprintId}","workflow":"milestone cadence","local":"get_sprint","tool":"jira_get_sprint","success":[200],"errors":[401,403,404],"response":"sprint","readOnly":true},
+    {"api":"software","operationId":"partiallyUpdateSprint","method":"post","path":"/rest/agile/1.0/sprint/{sprintId}","workflow":"milestone cadence","local":"update_sprint","tool":"jira_update_sprint","success":[200],"errors":[400,401,403,404],"request":"sprint update","response":"sprint","readOnly":false},
+    {"api":"software","operationId":"getIssuesForSprint","method":"get","path":"/rest/agile/1.0/sprint/{sprintId}/issue","workflow":"standup and release trace","local":"list_sprint_issues","tool":"jira_list_sprint_issues","success":[200],"errors":[401,403,404],"response":"issue page","readOnly":true,"pagination":"startAt/maxResults"},
+    {"api":"software","operationId":"moveIssuesToSprintAndRank","method":"post","path":"/rest/agile/1.0/sprint/{sprintId}/issue","workflow":"planning","local":"move_issues_to_sprint","tool":"jira_move_issues_to_sprint","success":[204],"errors":[400,401,403,404],"request":"issues array","readOnly":false}
+  ],
+  "excluded": [
+    {"family":"administration and schemes","reason":"not used by simulated engineering roles"},
+    {"family":"attachments and worklogs","reason":"not required for initial ticket-to-merge trace"},
+    {"family":"custom fields and apps","reason":"tenant-specific and non-deterministic"},
+    {"family":"service management","reason":"separate Jira product boundary"},
+    {"family":"board creation and filters","reason":"zero-state seeds the company board"}
+  ]
+}

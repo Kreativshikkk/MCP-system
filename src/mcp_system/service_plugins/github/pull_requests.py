@@ -1,0 +1,1108 @@
+"""Git commit, branch, pull-request, review, and merge operations."""
+
+from __future__ import annotations
+
+import re
+from typing import Any, Mapping, Sequence
+
+from .operations import (
+    GitHubConflict,
+    GitHubNotFound,
+    GitHubOperations,
+    GitHubValidationError,
+    _UNSET,
+)
+
+
+_GIT_SHA = re.compile(r"^[0-9a-fA-F]{40}([0-9a-fA-F]{24})?$")
+
+
+class GitHubPullRequestOperations(GitHubOperations):
+    """Extends core issue operations with the pull-request lifecycle."""
+
+    # Relational Git projections. When a Git data plane is bound, objects and
+    # refs are validated against the real bare repository.
+
+    def create_commit(
+        self,
+        owner: str,
+        repository: str,
+        *,
+        message: str,
+        author: str,
+        parent_shas: Sequence[str] = (),
+        files: Mapping[str, str | bytes | None] | None = None,
+    ) -> dict[str, Any]:
+        """Create a real Git commit and record its queryable relational projection."""
+        repository_row = self._require_repository(
+            owner, repository, minimum_permission="push"
+        )
+        if self.git_data_plane is None:
+            raise GitHubConflict("Git data plane is not configured")
+        author_row = self.session.execute(
+            "SELECT * FROM github_users WHERE lower(login) = lower(?)", (author,)
+        ).fetchone()
+        if author_row is None:
+            raise GitHubValidationError("Validation Failed: commit author does not exist")
+        git_repository = self.git_data_plane.repository(repository_row["id"])
+        created = git_repository.create_commit(
+            message=message,
+            author_name=author_row["name"] or author_row["login"],
+            author_email=author_row["email"] or f"{author_row['login']}@localhost",
+            timestamp=self.now(),
+            parent_shas=tuple(self._validate_sha(parent, "parent_sha") for parent in parent_shas),
+            files=files,
+        )
+        return self.record_commit(
+            owner,
+            repository,
+            sha=created["sha"],
+            tree_sha=created["tree_sha"],
+            message=message,
+            author=author,
+            parent_shas=created["parents"],
+        )
+
+    def record_commit(
+        self,
+        owner: str,
+        repository: str,
+        *,
+        sha: str,
+        message: str,
+        author: str,
+        parent_shas: Sequence[str] = (),
+        tree_sha: str | None = None,
+    ) -> dict[str, Any]:
+        repository_row = self._require_repository(
+            owner, repository, minimum_permission="push"
+        )
+        normalized_sha = self._validate_sha(sha, "sha")
+        normalized_tree = self._validate_sha(tree_sha, "tree_sha") if tree_sha else None
+        if not message:
+            raise GitHubValidationError("Validation Failed: commit message is required")
+        author_row = self.session.execute(
+            "SELECT * FROM github_users WHERE lower(login) = lower(?)", (author,)
+        ).fetchone()
+        if author_row is None:
+            raise GitHubValidationError("Validation Failed: commit author does not exist")
+        if self.session.execute(
+            "SELECT 1 FROM github_commits WHERE sha = ?", (normalized_sha,)
+        ).fetchone():
+            raise GitHubConflict("Commit already exists")
+
+        normalized_parents: list[str] = []
+        for parent_sha in parent_shas:
+            parent = self._require_commit(repository_row["id"], parent_sha)
+            normalized_parents.append(parent["sha"])
+        if self.git_data_plane is not None:
+            metadata = self.git_data_plane.repository(
+                repository_row["id"]
+            ).commit_metadata(normalized_sha)
+            if tuple(normalized_parents) != metadata["parents"]:
+                raise GitHubValidationError(
+                    "Validation Failed: relational parents differ from Git commit"
+                )
+            if normalized_tree is not None and normalized_tree != metadata["tree_sha"]:
+                raise GitHubValidationError(
+                    "Validation Failed: tree_sha differs from Git commit"
+                )
+            normalized_tree = metadata["tree_sha"]
+        timestamp = self._now_value()
+        self.session.execute(
+            """
+            INSERT INTO github_commits(
+                sha, repository_id, tree_sha, message, author_id, committer_id,
+                authored_at, committed_at
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+            """,
+            (
+                normalized_sha,
+                repository_row["id"],
+                normalized_tree,
+                message,
+                author_row["id"],
+                self._require_actor()["id"],
+                timestamp,
+                timestamp,
+            ),
+        )
+        if normalized_parents:
+            self.session.executemany(
+                """
+                INSERT INTO github_commit_parents(commit_sha, parent_sha, position)
+                VALUES (?, ?, ?)
+                """,
+                [
+                    (normalized_sha, parent_sha, position)
+                    for position, parent_sha in enumerate(normalized_parents)
+                ],
+            )
+        return self._commit_dict(
+            self._require_commit(repository_row["id"], normalized_sha), repository_row
+        )
+
+    def list_commits(self, owner: str, repository: str) -> list[dict[str, Any]]:
+        repository_row = self._require_repository(owner, repository)
+        rows = self.session.execute(
+            """
+            SELECT * FROM github_commits WHERE repository_id = ?
+             ORDER BY committed_at DESC, sha
+            """,
+            (repository_row["id"],),
+        ).fetchall()
+        return [self._commit_dict(row, repository_row) for row in rows]
+
+    def create_branch(
+        self,
+        owner: str,
+        repository: str,
+        *,
+        name: str,
+        head_sha: str,
+        protected: bool = False,
+    ) -> dict[str, Any]:
+        repository_row = self._require_repository(
+            owner, repository, minimum_permission="push"
+        )
+        if not name.strip():
+            raise GitHubValidationError("Validation Failed: branch name is required")
+        commit = self._require_commit(repository_row["id"], head_sha)
+        if self.session.execute(
+            """
+            SELECT 1 FROM github_branches
+             WHERE repository_id = ? AND lower(name) = lower(?)
+            """,
+            (repository_row["id"], name),
+        ).fetchone():
+            raise GitHubValidationError("Validation Failed: branch already exists")
+        self.session.execute(
+            """
+            INSERT INTO github_branches(repository_id, name, head_sha, protected)
+            VALUES (?, ?, ?, ?)
+            """,
+            (repository_row["id"], name, commit["sha"], protected),
+        )
+        if self.git_data_plane is not None:
+            self.git_data_plane.repository(repository_row["id"]).update_branch(
+                name, commit["sha"]
+            )
+        return self._branch_dict(
+            self._require_branch(repository_row["id"], name), repository_row
+        )
+
+    def list_branches(self, owner: str, repository: str) -> list[dict[str, Any]]:
+        repository_row = self._require_repository(owner, repository)
+        rows = self.session.execute(
+            """
+            SELECT * FROM github_branches WHERE repository_id = ? ORDER BY lower(name)
+            """,
+            (repository_row["id"],),
+        ).fetchall()
+        return [self._branch_dict(row, repository_row) for row in rows]
+
+    # Actions. Public methods mirror the selected REST read contract; mutation
+    # hooks are simulation-only and intentionally absent from the MCP surface.
+
+    def list_workflow_runs(self, owner: str, repository: str) -> dict[str, Any]:
+        repository_row = self._require_repository(owner, repository)
+        rows = self.session.execute(
+            "SELECT * FROM github_workflow_runs WHERE repository_id=? ORDER BY id DESC",
+            (repository_row["id"],),
+        ).fetchall()
+        runs = [self._workflow_run_dict(row, repository_row) for row in rows]
+        return {"total_count": len(runs), "workflow_runs": runs}
+
+    def list_workflow_jobs(self, owner: str, repository: str, run_id: int) -> dict[str, Any]:
+        repository_row = self._require_repository(owner, repository)
+        self._require_workflow_run(repository_row["id"], run_id)
+        rows = self.session.execute(
+            "SELECT * FROM github_workflow_jobs WHERE run_id=? ORDER BY id", (run_id,)
+        ).fetchall()
+        jobs = [self._workflow_job_dict(row, owner, repository, run_id) for row in rows]
+        return {"total_count": len(jobs), "jobs": jobs}
+
+    def get_workflow_job(self, owner: str, repository: str, job_id: int) -> dict[str, Any]:
+        repository_row = self._require_repository(owner, repository)
+        row = self.session.execute(
+            """SELECT job.* FROM github_workflow_jobs job
+                 JOIN github_workflow_runs run ON run.id=job.run_id
+                WHERE job.id=? AND run.repository_id=?""",
+            (job_id, repository_row["id"]),
+        ).fetchone()
+        if row is None:
+            raise GitHubNotFound("Not Found")
+        return self._workflow_job_dict(row, owner, repository, row["run_id"])
+
+    def get_workflow_job_log(self, owner: str, repository: str, job_id: int) -> dict[str, Any]:
+        job = self.get_workflow_job(owner, repository, job_id)
+        row = self.session.execute("SELECT log FROM github_workflow_jobs WHERE id=?", (job_id,)).fetchone()
+        return {"job_id": job_id, "log": row["log"]}
+
+    def create_workflow_run(self, owner: str, repository: str, *, name: str, event: str,
+                            head_branch: str, status: str = "queued") -> dict[str, Any]:
+        repository_row = self._require_repository(owner, repository, minimum_permission="push")
+        if status not in {"queued", "in_progress", "completed", "waiting", "pending"}:
+            raise GitHubValidationError("Validation Failed: invalid workflow status")
+        branch = self._require_branch(repository_row["id"], head_branch)
+        next_number = self.session.execute(
+            "SELECT COALESCE(MAX(run_number),0)+1 AS value FROM github_workflow_runs WHERE repository_id=?",
+            (repository_row["id"],),
+        ).fetchone()["value"]
+        timestamp = self._now_value()
+        run_id = self.session.execute(
+            """INSERT INTO github_workflow_runs(repository_id,name,event,status,conclusion,head_branch,head_sha,run_number,run_attempt,actor_id,created_at,updated_at)
+               VALUES(?,?,?,?,NULL,?,?,?,?,?,?,?) RETURNING id""",
+            (repository_row["id"], name, event, status, head_branch, branch["head_sha"], next_number, 1, self._require_actor()["id"], timestamp, timestamp),
+        ).fetchone()["id"]
+        return self._workflow_run_dict(self._require_workflow_run(repository_row["id"], run_id), repository_row)
+
+    def create_workflow_job(self, owner: str, repository: str, run_id: int, *, name: str,
+                            status: str = "queued", log: str = "") -> dict[str, Any]:
+        repository_row = self._require_repository(owner, repository, minimum_permission="push")
+        self._require_workflow_run(repository_row["id"], run_id)
+        if status not in {"queued", "in_progress", "completed", "waiting", "pending"}:
+            raise GitHubValidationError("Validation Failed: invalid job status")
+        timestamp = self._now_value()
+        job_id = self.session.execute(
+            "INSERT INTO github_workflow_jobs(run_id,name,status,conclusion,started_at,completed_at,log) VALUES(?,?,?,NULL,?,NULL,?) RETURNING id",
+            (run_id, name, status, timestamp if status != "queued" else None, log),
+        ).fetchone()["id"]
+        return self.get_workflow_job(owner, repository, job_id)
+
+    def update_workflow_job(self, owner: str, repository: str, job_id: int, *, status: str,
+                            conclusion: str | None = None, log: str | None = None) -> dict[str, Any]:
+        self._require_repository(owner, repository, minimum_permission="push")
+        self.get_workflow_job(owner, repository, job_id)
+        if status not in {"queued", "in_progress", "completed", "waiting", "pending"}:
+            raise GitHubValidationError("Validation Failed: invalid job status")
+        allowed = {None, "success", "failure", "neutral", "cancelled", "skipped", "timed_out", "action_required", "stale"}
+        if conclusion not in allowed or (status == "completed") != (conclusion is not None):
+            raise GitHubValidationError("Validation Failed: conclusion must match completed status")
+        timestamp = self._now_value()
+        self.session.execute(
+            "UPDATE github_workflow_jobs SET status=?,conclusion=?,completed_at=?,log=COALESCE(?,log) WHERE id=?",
+            (status, conclusion, timestamp if status == "completed" else None, log, job_id),
+        )
+        return self.get_workflow_job(owner, repository, job_id)
+
+    def update_workflow_run(self, owner: str, repository: str, run_id: int, *, status: str,
+                            conclusion: str | None = None) -> dict[str, Any]:
+        repository_row = self._require_repository(owner, repository, minimum_permission="push")
+        self._require_workflow_run(repository_row["id"], run_id)
+        allowed_status = {"queued", "in_progress", "completed", "waiting", "pending"}
+        allowed_conclusion = {None, "success", "failure", "neutral", "cancelled", "skipped", "timed_out", "action_required", "stale"}
+        if status not in allowed_status or conclusion not in allowed_conclusion or (status == "completed") != (conclusion is not None):
+            raise GitHubValidationError("Validation Failed: invalid workflow result")
+        self.session.execute(
+            "UPDATE github_workflow_runs SET status=?,conclusion=?,updated_at=? WHERE id=?",
+            (status, conclusion, self._now_value(), run_id),
+        )
+        return self._workflow_run_dict(self._require_workflow_run(repository_row["id"], run_id), repository_row)
+
+    def list_releases(self, owner: str, repository: str) -> list[dict[str, Any]]:
+        repository_row = self._require_repository(owner, repository)
+        rows = self.session.execute(
+            "SELECT * FROM github_releases WHERE repository_id=? ORDER BY id DESC",
+            (repository_row["id"],),
+        ).fetchall()
+        return [self._release_dict(row, repository_row) for row in rows]
+
+    def create_release(self, owner: str, repository: str, *, tag_name: str,
+                       target_commitish: str = "main", name: str | None = None,
+                       body: str | None = None, draft: bool = False,
+                       prerelease: bool = False) -> dict[str, Any]:
+        repository_row = self._require_repository(owner, repository, minimum_permission="push")
+        if not tag_name.strip():
+            raise GitHubValidationError("Validation Failed: tag_name is required")
+        branch = self._require_branch(repository_row["id"], target_commitish)
+        timestamp = self._now_value()
+        try:
+            release_id = self.session.execute(
+                """INSERT INTO github_releases(repository_id,tag_name,target_commitish,name,body,draft,prerelease,author_id,created_at,published_at)
+                   VALUES(?,?,?,?,?,?,?,?,?,?) RETURNING id""",
+                (repository_row["id"], tag_name, branch["name"], name, body, draft, prerelease,
+                 self._require_actor()["id"], timestamp, None if draft else timestamp),
+            ).fetchone()["id"]
+        except Exception as exc:
+            raise GitHubValidationError("Validation Failed: release tag already exists") from exc
+        row = self.session.execute("SELECT * FROM github_releases WHERE id=?", (release_id,)).fetchone()
+        return self._release_dict(row, repository_row)
+
+    # Pull requests
+
+    def create_pull_request(
+        self,
+        owner: str,
+        repository: str,
+        *,
+        title: str,
+        head: str,
+        base: str,
+        body: str | None = None,
+        draft: bool = False,
+    ) -> dict[str, Any]:
+        repository_row = self._require_repository(
+            owner, repository, minimum_permission="push"
+        )
+        actor = self._require_actor()
+        if not title.strip():
+            raise GitHubValidationError("Validation Failed: title is required")
+        head_branch = self._require_branch(repository_row["id"], head)
+        base_branch = self._require_branch(repository_row["id"], base)
+        if head_branch["name"].casefold() == base_branch["name"].casefold():
+            raise GitHubValidationError("Validation Failed: head and base must differ")
+        if head_branch["head_sha"] == base_branch["head_sha"]:
+            raise GitHubValidationError("Validation Failed: no commits between head and base")
+        existing = self.session.execute(
+            """
+            SELECT 1 FROM github_pull_requests pull
+              JOIN github_issues issue ON issue.id = pull.issue_id
+             WHERE issue.repository_id = ? AND issue.state = 'open'
+               AND lower(pull.head_ref) = lower(?)
+               AND lower(pull.base_ref) = lower(?)
+            """,
+            (repository_row["id"], head, base),
+        ).fetchone()
+        if existing:
+            raise GitHubValidationError(
+                "Validation Failed: a pull request already exists for these branches"
+            )
+
+        issue_number = self._allocate_issue_number(repository_row["id"])
+        timestamp = self._now_value()
+        issue_id = self.session.execute(
+            """
+            INSERT INTO github_issues(
+                repository_id, number, title, body, state, state_reason,
+                author_id, locked, is_pull_request, comments_count,
+                created_at, updated_at, closed_at
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?) RETURNING id
+            """,
+            (
+                repository_row["id"],
+                issue_number,
+                title,
+                body,
+                "open",
+                None,
+                actor["id"],
+                False,
+                True,
+                0,
+                timestamp,
+                timestamp,
+                None,
+            ),
+        ).fetchone()["id"]
+        self.session.execute(
+            """
+            INSERT INTO github_pull_requests(
+                issue_id, head_ref, head_sha, base_ref, base_sha, draft,
+                mergeable_state, merged, merged_by_id, merged_at, merge_commit_sha
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            """,
+            (
+                issue_id,
+                head_branch["name"],
+                head_branch["head_sha"],
+                base_branch["name"],
+                base_branch["head_sha"],
+                draft,
+                "clean",
+                False,
+                None,
+                None,
+                None,
+            ),
+        )
+        return self.get_pull_request(owner, repository, issue_number)
+
+    def list_pull_requests(
+        self, owner: str, repository: str, *, state: str = "open"
+    ) -> list[dict[str, Any]]:
+        repository_row = self._require_repository(owner, repository)
+        if state not in ("open", "closed", "all"):
+            raise GitHubValidationError("Validation Failed: invalid state")
+        statement = """
+            SELECT issue.number FROM github_issues issue
+              JOIN github_pull_requests pull ON pull.issue_id = issue.id
+             WHERE issue.repository_id = ?
+        """
+        parameters: list[Any] = [repository_row["id"]]
+        if state != "all":
+            statement += " AND issue.state = ?"
+            parameters.append(state)
+        statement += " ORDER BY issue.number DESC"
+        rows = self.session.execute(statement, tuple(parameters)).fetchall()
+        return [
+            self.get_pull_request(owner, repository, row["number"]) for row in rows
+        ]
+
+    def get_pull_request(
+        self, owner: str, repository: str, pull_number: int
+    ) -> dict[str, Any]:
+        repository_row = self._require_repository(owner, repository)
+        row = self._require_pull_request(repository_row["id"], pull_number)
+        return self._pull_request_dict(row, repository_row)
+
+    def update_pull_request(
+        self,
+        owner: str,
+        repository: str,
+        pull_number: int,
+        *,
+        title: str | object = _UNSET,
+        body: str | None | object = _UNSET,
+        state: str | object = _UNSET,
+        base: str | object = _UNSET,
+        draft: bool | object = _UNSET,
+    ) -> dict[str, Any]:
+        repository_row = self._require_repository(
+            owner, repository, minimum_permission="push"
+        )
+        pull = self._require_pull_request(repository_row["id"], pull_number)
+        if pull["merged"] and state == "open":
+            raise GitHubConflict("Merged pull requests cannot be reopened")
+        if title is not _UNSET or body is not _UNSET or state is not _UNSET:
+            self.update_issue(
+                owner,
+                repository,
+                pull_number,
+                title=title,
+                body=body,
+                state=state,
+            )
+        assignments: list[str] = []
+        parameters: list[Any] = []
+        if base is not _UNSET:
+            if not isinstance(base, str):
+                raise GitHubValidationError("Validation Failed: invalid base")
+            branch = self._require_branch(repository_row["id"], base)
+            if branch["name"].casefold() == pull["head_ref"].casefold():
+                raise GitHubValidationError("Validation Failed: head and base must differ")
+            assignments.extend(("base_ref = ?", "base_sha = ?"))
+            parameters.extend((branch["name"], branch["head_sha"]))
+        if draft is not _UNSET:
+            if not isinstance(draft, bool):
+                raise GitHubValidationError("Validation Failed: draft must be boolean")
+            assignments.append("draft = ?")
+            parameters.append(draft)
+        if assignments:
+            parameters.append(pull["issue_id"])
+            self.session.execute(
+                f"UPDATE github_pull_requests SET {', '.join(assignments)} WHERE issue_id = ?",
+                tuple(parameters),
+            )
+        return self.get_pull_request(owner, repository, pull_number)
+
+    # Review requests and reviews
+
+    def list_requested_reviewers(
+        self, owner: str, repository: str, pull_number: int
+    ) -> dict[str, Any]:
+        repository_row = self._require_repository(owner, repository)
+        pull = self._require_pull_request(repository_row["id"], pull_number)
+        rows = self.session.execute(
+            """
+            SELECT user_row.* FROM github_pull_request_reviewers reviewer
+              JOIN github_users user_row ON user_row.id = reviewer.user_id
+             WHERE reviewer.issue_id = ? ORDER BY lower(user_row.login)
+            """,
+            (pull["issue_id"],),
+        ).fetchall()
+        return {"users": [self._user_dict(row) for row in rows], "teams": []}
+
+    def request_reviewers(
+        self,
+        owner: str,
+        repository: str,
+        pull_number: int,
+        reviewers: Sequence[str],
+    ) -> dict[str, Any]:
+        repository_row = self._require_repository(
+            owner, repository, minimum_permission="push"
+        )
+        pull = self._require_pull_request(repository_row["id"], pull_number)
+        if pull["state"] != "open":
+            raise GitHubValidationError("Validation Failed: pull request is not open")
+        users = self._resolve_assignees(repository_row["id"], reviewers)
+        for user in users:
+            if user["id"] == pull["author_id"]:
+                raise GitHubValidationError("Validation Failed: author cannot review own pull request")
+            self.session.execute(
+                """
+                INSERT INTO github_pull_request_reviewers(issue_id, user_id)
+                VALUES (?, ?) ON CONFLICT DO NOTHING
+                """,
+                (pull["issue_id"], user["id"]),
+            )
+        return self.get_pull_request(owner, repository, pull_number)
+
+    def remove_requested_reviewers(
+        self,
+        owner: str,
+        repository: str,
+        pull_number: int,
+        reviewers: Sequence[str],
+    ) -> dict[str, Any]:
+        repository_row = self._require_repository(
+            owner, repository, minimum_permission="push"
+        )
+        pull = self._require_pull_request(repository_row["id"], pull_number)
+        users = self._resolve_assignees(repository_row["id"], reviewers)
+        for user in users:
+            self.session.execute(
+                """
+                DELETE FROM github_pull_request_reviewers
+                 WHERE issue_id = ? AND user_id = ?
+                """,
+                (pull["issue_id"], user["id"]),
+            )
+        return self.get_pull_request(owner, repository, pull_number)
+
+    def create_review(
+        self,
+        owner: str,
+        repository: str,
+        pull_number: int,
+        *,
+        event: str,
+        body: str | None = None,
+        commit_sha: str | None = None,
+    ) -> dict[str, Any]:
+        repository_row = self._require_repository(
+            owner, repository, minimum_permission="pull"
+        )
+        pull = self._require_pull_request(repository_row["id"], pull_number)
+        actor = self._require_actor()
+        event_to_state = {
+            "APPROVE": "APPROVED",
+            "REQUEST_CHANGES": "CHANGES_REQUESTED",
+            "COMMENT": "COMMENTED",
+            "PENDING": "PENDING",
+        }
+        if event not in event_to_state:
+            raise GitHubValidationError("Validation Failed: invalid review event")
+        if actor["id"] == pull["author_id"] and event in ("APPROVE", "REQUEST_CHANGES"):
+            raise GitHubValidationError("Validation Failed: author cannot review own pull request")
+        selected_sha = commit_sha or pull["head_sha"]
+        self._require_commit(repository_row["id"], selected_sha)
+        submitted_at = None if event == "PENDING" else self._now_value()
+        review_id = self.session.execute(
+            """
+            INSERT INTO github_pull_request_reviews(
+                issue_id, reviewer_id, state, body, commit_sha, submitted_at
+            ) VALUES (?, ?, ?, ?, ?, ?) RETURNING id
+            """,
+            (
+                pull["issue_id"],
+                actor["id"],
+                event_to_state[event],
+                body,
+                selected_sha,
+                submitted_at,
+            ),
+        ).fetchone()["id"]
+        self.session.execute(
+            """
+            DELETE FROM github_pull_request_reviewers
+             WHERE issue_id = ? AND user_id = ?
+            """,
+            (pull["issue_id"], actor["id"]),
+        )
+        return self._review_dict(self._require_review(review_id), repository_row, pull_number)
+
+    def list_reviews(
+        self, owner: str, repository: str, pull_number: int
+    ) -> list[dict[str, Any]]:
+        repository_row = self._require_repository(owner, repository)
+        pull = self._require_pull_request(repository_row["id"], pull_number)
+        rows = self.session.execute(
+            """
+            SELECT review.*, user_row.login AS reviewer_login,
+                   user_row.name AS reviewer_name, user_row.email AS reviewer_email,
+                   user_row.user_type AS reviewer_type,
+                   user_row.site_admin AS reviewer_site_admin
+              FROM github_pull_request_reviews review
+              JOIN github_users user_row ON user_row.id = review.reviewer_id
+             WHERE review.issue_id = ? ORDER BY review.id
+            """,
+            (pull["issue_id"],),
+        ).fetchall()
+        return [self._review_dict(row, repository_row, pull_number) for row in rows]
+
+    def create_review_comment(
+        self,
+        owner: str,
+        repository: str,
+        pull_number: int,
+        *,
+        body: str,
+        path: str,
+        commit_sha: str | None = None,
+        line: int | None = None,
+        side: str | None = None,
+        review_id: int | None = None,
+    ) -> dict[str, Any]:
+        repository_row = self._require_repository(
+            owner, repository, minimum_permission="pull"
+        )
+        pull = self._require_pull_request(repository_row["id"], pull_number)
+        actor = self._require_actor()
+        if not body:
+            raise GitHubValidationError("Validation Failed: body is required")
+        if not path or path.startswith("/") or ".." in path.split("/"):
+            raise GitHubValidationError("Validation Failed: invalid path")
+        if line is not None and (not isinstance(line, int) or line <= 0):
+            raise GitHubValidationError("Validation Failed: line must be positive")
+        if side not in (None, "LEFT", "RIGHT"):
+            raise GitHubValidationError("Validation Failed: invalid side")
+        selected_sha = self._require_commit(
+            repository_row["id"], commit_sha or pull["head_sha"]
+        )["sha"]
+        if review_id is not None:
+            review = self._require_review(review_id)
+            if review["issue_id"] != pull["issue_id"]:
+                raise GitHubValidationError(
+                    "Validation Failed: review does not belong to pull request"
+                )
+        timestamp = self._now_value()
+        comment_id = self.session.execute(
+            """
+            INSERT INTO github_pull_request_review_comments(
+                review_id, issue_id, author_id, body, path, line, side,
+                commit_sha, created_at, updated_at
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?) RETURNING id
+            """,
+            (
+                review_id,
+                pull["issue_id"],
+                actor["id"],
+                body,
+                path,
+                line,
+                side,
+                selected_sha,
+                timestamp,
+                timestamp,
+            ),
+        ).fetchone()["id"]
+        return self._review_comment_dict(
+            self._require_review_comment(comment_id), repository_row, pull_number
+        )
+
+    def list_review_comments(
+        self, owner: str, repository: str, pull_number: int
+    ) -> list[dict[str, Any]]:
+        repository_row = self._require_repository(owner, repository)
+        pull = self._require_pull_request(repository_row["id"], pull_number)
+        rows = self.session.execute(
+            """
+            SELECT comment.*, user_row.login AS author_login,
+                   user_row.name AS author_name, user_row.email AS author_email,
+                   user_row.user_type AS author_type,
+                   user_row.site_admin AS author_site_admin
+              FROM github_pull_request_review_comments comment
+              JOIN github_users user_row ON user_row.id = comment.author_id
+             WHERE comment.issue_id = ? ORDER BY comment.id
+            """,
+            (pull["issue_id"],),
+        ).fetchall()
+        return [
+            self._review_comment_dict(row, repository_row, pull_number)
+            for row in rows
+        ]
+
+    # Merge
+
+    def is_merged(self, owner: str, repository: str, pull_number: int) -> bool:
+        repository_row = self._require_repository(owner, repository)
+        return bool(
+            self._require_pull_request(repository_row["id"], pull_number)["merged"]
+        )
+
+    def merge_pull_request_api(
+        self,
+        owner: str,
+        repository: str,
+        pull_number: int,
+        *,
+        commit_title: str | None = None,
+        commit_message: str | None = None,
+        sha: str | None = None,
+        merge_method: str = "merge",
+    ) -> dict[str, Any]:
+        """Implement GitHub's public merge request shape over the real Git plane."""
+        repository_row = self._require_repository(owner, repository, minimum_permission="push")
+        pull = self._require_pull_request(repository_row["id"], pull_number)
+        if merge_method not in {"merge", "squash", "rebase"}:
+            raise GitHubValidationError("Validation Failed: invalid merge_method")
+        if merge_method != "merge":
+            raise GitHubConflict(f"Merge method {merge_method!r} is not enabled")
+        if sha is not None and sha != pull["head_sha"]:
+            raise GitHubConflict("Head branch was modified. Review and try the merge again.")
+        if self.git_data_plane is None:
+            raise GitHubConflict("Git data plane is not configured")
+        git_repository = self.git_data_plane.repository(repository_row["id"])
+        base_paths = {item["path"] for item in git_repository.list_tree(pull["base_sha"], recursive=True) if item["type"] == "blob"}
+        head_paths = {item["path"] for item in git_repository.list_tree(pull["head_sha"], recursive=True) if item["type"] == "blob"}
+        files: dict[str, bytes | None] = {path: git_repository.read_file(pull["head_sha"], path) for path in head_paths}
+        files.update({path: None for path in base_paths - head_paths})
+        title = commit_title or f"Merge pull request #{pull_number} from {owner}/{pull['head_ref']}"
+        message = f"{title}\n\n{commit_message}" if commit_message else title
+        created = self.create_commit(
+            owner,
+            repository,
+            message=message,
+            author=self.actor_login,
+            parent_shas=(pull["base_sha"], pull["head_sha"]),
+            files=files,
+        )
+        return self.merge_pull_request(
+            owner, repository, pull_number, merge_commit_sha=created["sha"]
+        )
+
+    def merge_pull_request(
+        self,
+        owner: str,
+        repository: str,
+        pull_number: int,
+        *,
+        merge_commit_sha: str,
+    ) -> dict[str, Any]:
+        repository_row = self._require_repository(
+            owner, repository, minimum_permission="push"
+        )
+        pull = self._require_pull_request(repository_row["id"], pull_number)
+        if pull["merged"]:
+            return {
+                "sha": pull["merge_commit_sha"],
+                "merged": True,
+                "message": "Pull Request is already merged",
+            }
+        if pull["state"] != "open":
+            raise GitHubConflict("Pull Request is not mergeable")
+        if pull["draft"]:
+            raise GitHubConflict("Draft Pull Requests are not mergeable")
+
+        head_branch = self._require_branch(repository_row["id"], pull["head_ref"])
+        base_branch = self._require_branch(repository_row["id"], pull["base_ref"])
+        if base_branch["head_sha"] != pull["base_sha"]:
+            self.session.execute(
+                "UPDATE github_pull_requests SET mergeable_state = 'behind' WHERE issue_id = ?",
+                (pull["issue_id"],),
+            )
+            raise GitHubConflict("Base branch was modified. Review and try the merge again.")
+        merge_commit = self._require_commit(repository_row["id"], merge_commit_sha)
+        parents = self.session.execute(
+            """
+            SELECT parent_sha FROM github_commit_parents
+             WHERE commit_sha = ? ORDER BY position
+            """,
+            (merge_commit["sha"],),
+        ).fetchall()
+        parent_shas = {row["parent_sha"] for row in parents}
+        expected_parents = {base_branch["head_sha"], head_branch["head_sha"]}
+        if not expected_parents.issubset(parent_shas):
+            raise GitHubValidationError(
+                "Validation Failed: merge commit must reference current base and head"
+            )
+
+        timestamp = self._now_value()
+        actor = self._require_actor()
+        self.session.execute(
+            """
+            UPDATE github_pull_requests
+               SET merged = ?, merged_by_id = ?, merged_at = ?,
+                   merge_commit_sha = ?, mergeable_state = 'clean'
+             WHERE issue_id = ?
+            """,
+            (True, actor["id"], timestamp, merge_commit["sha"], pull["issue_id"]),
+        )
+        self.session.execute(
+            """
+            UPDATE github_issues
+               SET state = 'closed', state_reason = 'completed',
+                   closed_at = ?, updated_at = ?
+             WHERE id = ?
+            """,
+            (timestamp, timestamp, pull["issue_id"]),
+        )
+        self.session.execute(
+            """
+            UPDATE github_branches SET head_sha = ?
+             WHERE repository_id = ? AND name = ?
+            """,
+            (merge_commit["sha"], repository_row["id"], base_branch["name"]),
+        )
+        if self.git_data_plane is not None:
+            self.git_data_plane.repository(repository_row["id"]).update_branch(
+                base_branch["name"],
+                merge_commit["sha"],
+                expected_old_sha=base_branch["head_sha"],
+            )
+        return {
+            "sha": merge_commit["sha"],
+            "merged": True,
+            "message": "Pull Request successfully merged",
+        }
+
+    # Helpers and serializers
+
+    def _require_commit(self, repository_id: int, sha: str) -> Mapping[str, Any]:
+        normalized_sha = self._validate_sha(sha, "sha")
+        row = self.session.execute(
+            "SELECT * FROM github_commits WHERE repository_id = ? AND sha = ?",
+            (repository_id, normalized_sha),
+        ).fetchone()
+        if row is None:
+            raise GitHubValidationError("Validation Failed: commit does not exist")
+        return row
+
+    def _require_branch(self, repository_id: int, name: str) -> Mapping[str, Any]:
+        row = self.session.execute(
+            """
+            SELECT * FROM github_branches
+             WHERE repository_id = ? AND lower(name) = lower(?)
+            """,
+            (repository_id, name),
+        ).fetchone()
+        if row is None:
+            raise GitHubValidationError("Validation Failed: branch does not exist")
+        if row["head_sha"] is None:
+            raise GitHubValidationError("Validation Failed: branch has no commits")
+        return row
+
+    def _require_workflow_run(self, repository_id: int, run_id: int) -> Mapping[str, Any]:
+        row = self.session.execute(
+            "SELECT * FROM github_workflow_runs WHERE repository_id=? AND id=?",
+            (repository_id, run_id),
+        ).fetchone()
+        if row is None:
+            raise GitHubNotFound("Not Found")
+        return row
+
+    def _workflow_run_dict(self, row: Mapping[str, Any], repository: Mapping[str, Any]) -> dict[str, Any]:
+        return {
+            "id": row["id"], "name": row["name"], "event": row["event"],
+            "status": row["status"], "conclusion": row["conclusion"],
+            "head_branch": row["head_branch"], "head_sha": row["head_sha"],
+            "run_number": row["run_number"], "run_attempt": row["run_attempt"],
+            "created_at": row["created_at"], "updated_at": row["updated_at"],
+            "jobs_url": f"https://api.github.com/repos/{repository['owner_login']}/{repository['name']}/actions/runs/{row['id']}/jobs",
+        }
+
+    def _release_dict(self, row: Mapping[str, Any], repository: Mapping[str, Any]) -> dict[str, Any]:
+        author = self.session.execute("SELECT * FROM github_users WHERE id=?", (row["author_id"],)).fetchone()
+        return {
+            "id": row["id"], "tag_name": row["tag_name"],
+            "target_commitish": row["target_commitish"], "name": row["name"],
+            "body": row["body"], "draft": bool(row["draft"]),
+            "prerelease": bool(row["prerelease"]), "author": self._user_dict(author),
+            "created_at": row["created_at"], "published_at": row["published_at"],
+            "html_url": f"https://github.com/{repository['full_name']}/releases/tag/{row['tag_name']}",
+        }
+
+    @staticmethod
+    def _workflow_job_dict(row: Mapping[str, Any], owner: str, repository: str, run_id: int) -> dict[str, Any]:
+        return {
+            "id": row["id"], "run_id": run_id, "name": row["name"],
+            "status": row["status"], "conclusion": row["conclusion"],
+            "started_at": row["started_at"], "completed_at": row["completed_at"],
+            "steps": [],
+            "url": f"https://api.github.com/repos/{owner}/{repository}/actions/jobs/{row['id']}",
+        }
+
+    def _require_pull_request(
+        self, repository_id: int, pull_number: int
+    ) -> Mapping[str, Any]:
+        row = self.session.execute(
+            """
+            SELECT issue.*, pull.issue_id, pull.head_ref, pull.head_sha,
+                   pull.base_ref, pull.base_sha, pull.draft,
+                   pull.mergeable_state, pull.merged, pull.merged_by_id,
+                   pull.merged_at, pull.merge_commit_sha
+              FROM github_issues issue
+              JOIN github_pull_requests pull ON pull.issue_id = issue.id
+             WHERE issue.repository_id = ? AND issue.number = ?
+            """,
+            (repository_id, pull_number),
+        ).fetchone()
+        if row is None:
+            raise GitHubNotFound("Not Found")
+        return row
+
+    def _require_review(self, review_id: int) -> Mapping[str, Any]:
+        row = self.session.execute(
+            """
+            SELECT review.*, user_row.login AS reviewer_login,
+                   user_row.name AS reviewer_name, user_row.email AS reviewer_email,
+                   user_row.user_type AS reviewer_type,
+                   user_row.site_admin AS reviewer_site_admin
+              FROM github_pull_request_reviews review
+              JOIN github_users user_row ON user_row.id = review.reviewer_id
+             WHERE review.id = ?
+            """,
+            (review_id,),
+        ).fetchone()
+        if row is None:
+            raise GitHubNotFound("Not Found")
+        return row
+
+    def _require_review_comment(self, comment_id: int) -> Mapping[str, Any]:
+        row = self.session.execute(
+            """
+            SELECT comment.*, user_row.login AS author_login,
+                   user_row.name AS author_name, user_row.email AS author_email,
+                   user_row.user_type AS author_type,
+                   user_row.site_admin AS author_site_admin
+              FROM github_pull_request_review_comments comment
+              JOIN github_users user_row ON user_row.id = comment.author_id
+             WHERE comment.id = ?
+            """,
+            (comment_id,),
+        ).fetchone()
+        if row is None:
+            raise GitHubNotFound("Not Found")
+        return row
+
+    def _pull_request_dict(
+        self, row: Mapping[str, Any], repository: Mapping[str, Any]
+    ) -> dict[str, Any]:
+        result = self._issue_dict(row, repository)
+        for issue_only_field in ("state_reason", "repository_url", "pull_request"):
+            result.pop(issue_only_field, None)
+        result["url"] = (
+            f"https://api.github.com/repos/{repository['full_name']}/pulls/{row['number']}"
+        )
+        result["html_url"] = (
+            f"https://github.com/{repository['full_name']}/pull/{row['number']}"
+        )
+        result.update(
+            {
+                "draft": bool(row["draft"]),
+                "merged": bool(row["merged"]),
+                "mergeable_state": row["mergeable_state"],
+                "merged_at": self._serialize_time(row["merged_at"]),
+                "merge_commit_sha": row["merge_commit_sha"],
+                "head": {
+                    "ref": row["head_ref"],
+                    "sha": row["head_sha"],
+                    "label": f"{repository['owner_login']}:{row['head_ref']}",
+                },
+                "base": {
+                    "ref": row["base_ref"],
+                    "sha": row["base_sha"],
+                    "label": f"{repository['owner_login']}:{row['base_ref']}",
+                },
+                "requested_reviewers": self.list_requested_reviewers(
+                    repository["owner_login"], repository["name"], row["number"]
+                )["users"],
+                "requested_teams": [],
+            }
+        )
+        return result
+
+    def _review_dict(
+        self,
+        row: Mapping[str, Any],
+        repository: Mapping[str, Any],
+        pull_number: int,
+    ) -> dict[str, Any]:
+        return {
+            "id": row["id"],
+            "node_id": f"PRR_{row['id']}",
+            "user": {
+                "login": row["reviewer_login"],
+                "id": row["reviewer_id"],
+                "name": row["reviewer_name"],
+                "email": row["reviewer_email"],
+                "type": row["reviewer_type"],
+                "site_admin": bool(row["reviewer_site_admin"]),
+            },
+            "body": row["body"],
+            "state": row["state"],
+            "commit_id": row["commit_sha"],
+            "submitted_at": self._serialize_time(row["submitted_at"]),
+            "pull_request_url": (
+                f"https://api.github.com/repos/{repository['full_name']}/pulls/{pull_number}"
+            ),
+        }
+
+    def _commit_dict(
+        self, row: Mapping[str, Any], repository: Mapping[str, Any]
+    ) -> dict[str, Any]:
+        parents = self.session.execute(
+            """
+            SELECT parent_sha FROM github_commit_parents
+             WHERE commit_sha = ? ORDER BY position
+            """,
+            (row["sha"],),
+        ).fetchall()
+        return {
+            "sha": row["sha"],
+            "node_id": f"C_{row['sha']}",
+            "commit": {
+                "message": row["message"],
+                "author": {"date": self._serialize_time(row["authored_at"])},
+                "committer": {"date": self._serialize_time(row["committed_at"])},
+                "tree": {"sha": row["tree_sha"]},
+            },
+            "parents": [{"sha": parent["parent_sha"]} for parent in parents],
+            "url": f"https://api.github.com/repos/{repository['full_name']}/commits/{row['sha']}",
+            "html_url": f"https://github.com/{repository['full_name']}/commit/{row['sha']}",
+        }
+
+    def _review_comment_dict(
+        self,
+        row: Mapping[str, Any],
+        repository: Mapping[str, Any],
+        pull_number: int,
+    ) -> dict[str, Any]:
+        return {
+            "id": row["id"],
+            "node_id": f"PRRC_{row['id']}",
+            "pull_request_review_id": row["review_id"],
+            "body": row["body"],
+            "path": row["path"],
+            "line": row["line"],
+            "side": row["side"],
+            "commit_id": row["commit_sha"],
+            "user": {
+                "login": row["author_login"],
+                "id": row["author_id"],
+                "name": row["author_name"],
+                "email": row["author_email"],
+                "type": row["author_type"],
+                "site_admin": bool(row["author_site_admin"]),
+            },
+            "created_at": self._serialize_time(row["created_at"]),
+            "updated_at": self._serialize_time(row["updated_at"]),
+            "url": (
+                f"https://api.github.com/repos/{repository['full_name']}/pulls/comments/{row['id']}"
+            ),
+            "pull_request_url": (
+                f"https://api.github.com/repos/{repository['full_name']}/pulls/{pull_number}"
+            ),
+        }
+
+    def _branch_dict(
+        self, row: Mapping[str, Any], repository: Mapping[str, Any]
+    ) -> dict[str, Any]:
+        return {
+            "name": row["name"],
+            "commit": {
+                "sha": row["head_sha"],
+                "url": f"https://api.github.com/repos/{repository['full_name']}/commits/{row['head_sha']}",
+            },
+            "protected": bool(row["protected"]),
+        }
+
+    @staticmethod
+    def _validate_sha(value: str, field: str) -> str:
+        if not isinstance(value, str) or not _GIT_SHA.fullmatch(value):
+            raise GitHubValidationError(
+                f"Validation Failed: {field} must be a 40 or 64 character hex SHA"
+            )
+        return value.lower()

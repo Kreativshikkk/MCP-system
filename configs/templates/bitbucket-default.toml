@@ -1,0 +1,49 @@
+[template]
+id = "bitbucket_default"
+name = "Bitbucket software company bootstrap"
+version = "1.0.0"
+mcp_surfaces = ["bitbucket_cloud_v2"]
+
+[[services]]
+instance_id = "bitbucket"
+plugin = "bitbucket"
+version = "0.1.0"
+
+[services.seed]
+created_at = "2026-01-01T00:00:00+00:00"
+
+[services.seed.workspace]
+slug = "acme"
+name = "Acme Software"
+is_private = true
+
+[[services.seed.users]]
+username = "director"
+display_name = "Director"
+email = "director@acme.local"
+permission = "admin"
+
+[[services.seed.users]]
+username = "lead"
+display_name = "Team Lead"
+email = "lead@acme.local"
+permission = "admin"
+
+[[services.seed.users]]
+username = "engineer"
+display_name = "Software Engineer"
+email = "engineer@acme.local"
+permission = "write"
+
+[[services.seed.users]]
+username = "qa"
+display_name = "QA Engineer"
+email = "qa@acme.local"
+permission = "write"
+
+[[services.seed.repositories]]
+slug = "product"
+name = "Product"
+description = "Primary product repository"
+is_private = true
+mainbranch = "main"

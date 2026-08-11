@@ -1,0 +1,18 @@
+{
+  "retrieved_at": "2026-08-07",
+  "upstream_version": "1.8516.75",
+  "documents": [
+    {
+      "api": "Jira Cloud Platform REST API v3",
+      "file": "platform-openapi-1.8516.75.json",
+      "source": "https://dac-static.atlassian.com/cloud/jira/platform/swagger-v3.v3.json?_v=1.8516.75",
+      "sha256": "5a51740d7ab3c77c521fc8895a7a58b4ff684bc0d2ebeb830135e8320b063ced"
+    },
+    {
+      "api": "Jira Software Cloud REST API",
+      "file": "software-openapi-1.8516.75.json",
+      "source": "https://dac-static.atlassian.com/cloud/jira/software/swagger.v3.json?_v=1.8516.75",
+      "sha256": "4e108d54b99064475c6ba0f986cce46dcace81336e034b58a5400b93174b927a"
+    }
+  ]
+}

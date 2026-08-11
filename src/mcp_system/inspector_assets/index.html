@@ -1,0 +1,224 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="color-scheme" content="light">
+    <title>MCPSystem Inspector</title>
+    <link rel="stylesheet" href="/assets/app.css">
+    <script src="/assets/app.js" defer></script>
+  </head>
+  <body>
+    <div class="app-shell">
+      <header class="topbar">
+        <a class="brand" href="/" aria-label="MCPSystem Inspector home">
+          <span class="brand-mark" aria-hidden="true">M</span>
+          <span>
+            <strong>MCPSystem</strong>
+            <small>Inspector</small>
+          </span>
+        </a>
+        <div class="topbar-actions">
+          <span class="connection-state"><i></i> Local runtime</span>
+          <button class="button button-secondary" id="refresh-button" type="button">
+            <span aria-hidden="true">↻</span> Refresh
+          </button>
+        </div>
+      </header>
+
+      <aside class="sidebar" aria-label="Environments">
+        <div class="sidebar-heading">
+          <div>
+            <span class="eyebrow">Workspace</span>
+            <h2>Environments</h2>
+          </div>
+          <span class="count-badge" id="environment-count">0</span>
+        </div>
+        <nav id="environment-list" class="environment-list"></nav>
+        <div class="sidebar-note">
+          <span class="note-icon" aria-hidden="true">◎</span>
+          <p><strong>Read-only view</strong><br>Inspector never mutates provider state.</p>
+        </div>
+      </aside>
+
+      <main class="content">
+        <div id="error-banner" class="error-banner" role="alert" hidden></div>
+
+        <section id="empty-state" class="empty-state" hidden>
+          <div class="empty-illustration" aria-hidden="true">◇</div>
+          <span class="eyebrow">Nothing to inspect yet</span>
+          <h1>Create an environment to begin</h1>
+          <p>Once agents call provider operations through MCP or HTTP, their timeline will appear here.</p>
+        </section>
+
+        <div id="inspector-content" hidden>
+          <section class="environment-header">
+            <div>
+              <div class="header-meta">
+                <span class="status-pill" id="environment-status">ready</span>
+                <span id="environment-template">No template</span>
+              </div>
+              <h1 id="environment-name">Environment</h1>
+              <code id="environment-id"></code>
+            </div>
+            <div class="updated-at">
+              <span>Last state update</span>
+              <strong id="environment-updated">—</strong>
+            </div>
+          </section>
+
+          <nav class="view-switcher" aria-label="Inspector view">
+            <button class="view-tab active" data-view="activity" type="button">Activity</button>
+            <button class="view-tab" data-view="workbench" type="button">Artifacts</button>
+          </nav>
+
+          <div id="activity-view">
+          <section class="stats-grid" aria-label="Timeline summary">
+            <article class="stat-card stat-total">
+              <span>Total operations</span>
+              <strong id="stat-total">0</strong>
+              <small>captured attempts</small>
+            </article>
+            <article class="stat-card stat-success">
+              <span>Succeeded</span>
+              <strong id="stat-success">0</strong>
+              <small id="stat-success-rate">0% success rate</small>
+            </article>
+            <article class="stat-card stat-failed">
+              <span>Failed</span>
+              <strong id="stat-failed">0</strong>
+              <small>failed or interrupted</small>
+            </article>
+            <article class="stat-card stat-actors">
+              <span>Active actors</span>
+              <strong id="stat-actors">0</strong>
+              <small>in this trace</small>
+            </article>
+          </section>
+
+          <section class="timeline-panel">
+            <div class="panel-heading">
+              <div>
+                <span class="eyebrow">Durable operation log</span>
+                <h2>Activity timeline</h2>
+              </div>
+              <span class="result-count" id="result-count">0 operations</span>
+            </div>
+
+            <div class="filters" aria-label="Timeline filters">
+              <label class="search-field">
+                <span class="sr-only">Search operations</span>
+                <span aria-hidden="true">⌕</span>
+                <input id="search-filter" type="search" placeholder="Search operation, actor, request…" autocomplete="off">
+              </label>
+              <label>
+                <span class="sr-only">Transport</span>
+                <select id="transport-filter">
+                  <option value="">All transports</option>
+                  <option value="mcp">MCP</option>
+                  <option value="http">HTTP</option>
+                </select>
+              </label>
+              <label>
+                <span class="sr-only">Status</span>
+                <select id="status-filter">
+                  <option value="">All statuses</option>
+                  <option value="succeeded">Succeeded</option>
+                  <option value="failed">Failed</option>
+                  <option value="interrupted">Interrupted</option>
+                  <option value="running">Running</option>
+                </select>
+              </label>
+              <label>
+                <span class="sr-only">Actor</span>
+                <select id="actor-filter">
+                  <option value="">All actors</option>
+                </select>
+              </label>
+            </div>
+
+            <div id="timeline-list" class="timeline-list"></div>
+            <div id="timeline-empty" class="timeline-empty" hidden>
+              <span aria-hidden="true">⌁</span>
+              <h3>No matching operations</h3>
+              <p>Adjust the filters or execute an operation in this environment.</p>
+            </div>
+            <p id="truncated-note" class="truncated-note" hidden>Showing the first 500 operations in this environment.</p>
+          </section>
+          </div>
+
+          <section id="workbench-view" class="workbench-view" hidden>
+            <div class="workbench-toolbar">
+              <div>
+                <span class="eyebrow">Universal provider projection</span>
+                <h2>Work artifacts</h2>
+              </div>
+              <label class="repository-picker">
+                <span>Repository</span>
+                <select id="repository-select"></select>
+              </label>
+            </div>
+
+            <div id="workbench-empty" class="timeline-empty" hidden>
+              <span aria-hidden="true">◇</span>
+              <h3>No supported artifacts</h3>
+              <p>This environment has no services with an Inspector projection.</p>
+            </div>
+
+            <div id="workbench-content">
+              <div class="artifact-summary">
+                <div><strong id="artifact-ticket-count">0</strong><span>Tickets</span></div>
+                <div><strong id="artifact-change-count">0</strong><span>Change sets</span></div>
+                <div><strong id="artifact-build-count">0</strong><span>Builds</span></div>
+                <div><strong id="artifact-visibility">—</strong><span>Provider / instance</span></div>
+              </div>
+
+              <div class="artifact-browser">
+                <aside class="artifact-list-column">
+                  <div class="artifact-tabs" role="tablist" aria-label="Artifact type">
+                    <button class="artifact-tab active" data-artifact-type="tickets" type="button">Tickets</button>
+                    <button class="artifact-tab" data-artifact-type="changeSets" type="button">Change sets</button>
+                  </div>
+                  <div id="artifact-list" class="artifact-list"></div>
+                </aside>
+                <article id="artifact-detail" class="artifact-detail">
+                  <div class="artifact-placeholder">
+                    <span aria-hidden="true">↗</span>
+                    <h3>Select an artifact</h3>
+                    <p>Ticket and change-set context will appear here.</p>
+                  </div>
+                </article>
+              </div>
+            </div>
+          </section>
+        </div>
+      </main>
+    </div>
+
+    <div id="drawer-backdrop" class="drawer-backdrop" hidden></div>
+    <aside id="operation-drawer" class="operation-drawer" aria-label="Operation details" hidden>
+      <div class="drawer-header">
+        <div>
+          <span class="eyebrow">Operation details</span>
+          <h2 id="drawer-operation">operation</h2>
+        </div>
+        <button id="drawer-close" class="icon-button" type="button" aria-label="Close operation details">×</button>
+      </div>
+      <div class="drawer-meta" id="drawer-meta"></div>
+      <div class="drawer-content">
+        <section>
+          <div class="section-title"><h3>Request</h3><span>JSON</span></div>
+          <pre id="drawer-request"></pre>
+        </section>
+        <section id="drawer-result-section">
+          <div class="section-title"><h3>Result</h3><span>JSON</span></div>
+          <pre id="drawer-result"></pre>
+        </section>
+        <section id="drawer-error-section">
+          <div class="section-title"><h3>Error</h3><span>JSON</span></div>
+          <pre id="drawer-error" class="error-json"></pre>
+        </section>
+      </div>
+    </aside>
+  </body>
+</html>

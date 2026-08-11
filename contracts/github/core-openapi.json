@@ -1,0 +1,1035 @@
+{
+  "service": "github",
+  "source_repository": "https://github.com/github/rest-api-description",
+  "source_revision": "5e28810649ba41b5483753ba74f976f83856a504",
+  "source_document": "descriptions/api.github.com/api.github.com.2026-03-10.json",
+  "source_document_sha256": "d341cfdb1deb61cc942f8e1e77d9dcc4608df90752150a8337aedd8320d102b4",
+  "api_version": "2026-03-10",
+  "openapi_info_version": "1.1.4",
+  "operations": [
+    {
+      "method": "GET",
+      "path": "/user",
+      "operation_id": "users/get-authenticated",
+      "responses": [
+        "200",
+        "304",
+        "401",
+        "403"
+      ],
+      "query": {
+        "properties": [],
+        "required": []
+      },
+      "request": {
+        "properties": [],
+        "required": [],
+        "any_of_required": []
+      }
+    },
+    {
+      "method": "GET",
+      "path": "/users/{username}",
+      "operation_id": "users/get-by-username",
+      "responses": [
+        "200",
+        "404"
+      ],
+      "query": {
+        "properties": [],
+        "required": []
+      },
+      "request": {
+        "properties": [],
+        "required": [],
+        "any_of_required": []
+      }
+    },
+    {
+      "method": "GET",
+      "path": "/orgs/{org}",
+      "operation_id": "orgs/get",
+      "responses": [
+        "200",
+        "404"
+      ],
+      "query": {
+        "properties": [],
+        "required": []
+      },
+      "request": {
+        "properties": [],
+        "required": [],
+        "any_of_required": []
+      }
+    },
+    {
+      "method": "GET",
+      "path": "/orgs/{org}/members",
+      "operation_id": "orgs/list-members",
+      "responses": [
+        "200",
+        "422"
+      ],
+      "query": {
+        "properties": [
+          "filter",
+          "role"
+        ],
+        "required": []
+      },
+      "request": {
+        "properties": [],
+        "required": [],
+        "any_of_required": []
+      }
+    },
+    {
+      "method": "GET",
+      "path": "/orgs/{org}/repos",
+      "operation_id": "repos/list-for-org",
+      "responses": [
+        "200"
+      ],
+      "query": {
+        "properties": [
+          "direction",
+          "sort",
+          "type"
+        ],
+        "required": []
+      },
+      "request": {
+        "properties": [],
+        "required": [],
+        "any_of_required": []
+      }
+    },
+    {
+      "method": "POST",
+      "path": "/orgs/{org}/repos",
+      "operation_id": "repos/create-in-org",
+      "responses": [
+        "201",
+        "403",
+        "422",
+        "451"
+      ],
+      "query": {
+        "properties": [],
+        "required": []
+      },
+      "request": {
+        "properties": [
+          "allow_auto_merge",
+          "allow_merge_commit",
+          "allow_rebase_merge",
+          "allow_squash_merge",
+          "auto_init",
+          "custom_properties",
+          "delete_branch_on_merge",
+          "description",
+          "gitignore_template",
+          "has_downloads",
+          "has_issues",
+          "has_projects",
+          "has_wiki",
+          "homepage",
+          "is_template",
+          "license_template",
+          "merge_commit_message",
+          "merge_commit_title",
+          "name",
+          "private",
+          "squash_merge_commit_message",
+          "squash_merge_commit_title",
+          "team_id",
+          "use_squash_pr_title_as_default",
+          "visibility"
+        ],
+        "required": [
+          "name"
+        ],
+        "any_of_required": []
+      }
+    },
+    {
+      "method": "GET",
+      "path": "/repos/{owner}/{repo}",
+      "operation_id": "repos/get",
+      "responses": [
+        "200",
+        "301",
+        "403",
+        "404"
+      ],
+      "query": {
+        "properties": [],
+        "required": []
+      },
+      "request": {
+        "properties": [],
+        "required": [],
+        "any_of_required": []
+      }
+    },
+    {
+      "method": "PATCH",
+      "path": "/repos/{owner}/{repo}",
+      "operation_id": "repos/update",
+      "responses": [
+        "200",
+        "307",
+        "403",
+        "404",
+        "422"
+      ],
+      "query": {
+        "properties": [],
+        "required": []
+      },
+      "request": {
+        "properties": [
+          "allow_auto_merge",
+          "allow_forking",
+          "allow_merge_commit",
+          "allow_rebase_merge",
+          "allow_squash_merge",
+          "allow_update_branch",
+          "archived",
+          "default_branch",
+          "delete_branch_on_merge",
+          "description",
+          "has_issues",
+          "has_projects",
+          "has_pull_requests",
+          "has_wiki",
+          "homepage",
+          "is_template",
+          "merge_commit_message",
+          "merge_commit_title",
+          "name",
+          "private",
+          "pull_request_creation_policy",
+          "security_and_analysis",
+          "squash_merge_commit_message",
+          "squash_merge_commit_title",
+          "use_squash_pr_title_as_default",
+          "visibility",
+          "web_commit_signoff_required"
+        ],
+        "required": [],
+        "any_of_required": []
+      }
+    },
+    {
+      "method": "GET",
+      "path": "/repos/{owner}/{repo}/branches",
+      "operation_id": "repos/list-branches",
+      "responses": [
+        "200",
+        "404"
+      ],
+      "query": {
+        "properties": [
+          "protected"
+        ],
+        "required": []
+      },
+      "request": {
+        "properties": [],
+        "required": [],
+        "any_of_required": []
+      }
+    },
+    {
+      "method": "GET",
+      "path": "/repos/{owner}/{repo}/commits",
+      "operation_id": "repos/list-commits",
+      "responses": [
+        "200",
+        "400",
+        "404",
+        "409",
+        "500"
+      ],
+      "query": {
+        "properties": [
+          "author",
+          "committer",
+          "path",
+          "sha",
+          "since",
+          "until"
+        ],
+        "required": []
+      },
+      "request": {
+        "properties": [],
+        "required": [],
+        "any_of_required": []
+      }
+    },
+    {
+      "method": "GET",
+      "path": "/repos/{owner}/{repo}/labels",
+      "operation_id": "issues/list-labels-for-repo",
+      "responses": [
+        "200",
+        "404"
+      ],
+      "query": {
+        "properties": [],
+        "required": []
+      },
+      "request": {
+        "properties": [],
+        "required": [],
+        "any_of_required": []
+      }
+    },
+    {
+      "method": "POST",
+      "path": "/repos/{owner}/{repo}/labels",
+      "operation_id": "issues/create-label",
+      "responses": [
+        "201",
+        "404",
+        "422"
+      ],
+      "query": {
+        "properties": [],
+        "required": []
+      },
+      "request": {
+        "properties": [
+          "color",
+          "description",
+          "name"
+        ],
+        "required": [
+          "name"
+        ],
+        "any_of_required": []
+      }
+    },
+    {
+      "method": "GET",
+      "path": "/repos/{owner}/{repo}/issues",
+      "operation_id": "issues/list-for-repo",
+      "responses": [
+        "200",
+        "301",
+        "404",
+        "422"
+      ],
+      "query": {
+        "properties": [
+          "assignee",
+          "creator",
+          "issue_field_values",
+          "mentioned",
+          "milestone",
+          "sort",
+          "state",
+          "type"
+        ],
+        "required": []
+      },
+      "request": {
+        "properties": [],
+        "required": [],
+        "any_of_required": []
+      }
+    },
+    {
+      "method": "POST",
+      "path": "/repos/{owner}/{repo}/issues",
+      "operation_id": "issues/create",
+      "responses": [
+        "201",
+        "400",
+        "403",
+        "404",
+        "410",
+        "422",
+        "503"
+      ],
+      "query": {
+        "properties": [],
+        "required": []
+      },
+      "request": {
+        "properties": [
+          "assignees",
+          "body",
+          "issue_field_values",
+          "labels",
+          "milestone",
+          "title",
+          "type"
+        ],
+        "required": [
+          "title"
+        ],
+        "any_of_required": []
+      }
+    },
+    {
+      "method": "GET",
+      "path": "/repos/{owner}/{repo}/issues/{issue_number}",
+      "operation_id": "issues/get",
+      "responses": [
+        "200",
+        "301",
+        "304",
+        "404",
+        "410"
+      ],
+      "query": {
+        "properties": [],
+        "required": []
+      },
+      "request": {
+        "properties": [],
+        "required": [],
+        "any_of_required": []
+      }
+    },
+    {
+      "method": "PATCH",
+      "path": "/repos/{owner}/{repo}/issues/{issue_number}",
+      "operation_id": "issues/update",
+      "responses": [
+        "200",
+        "301",
+        "403",
+        "404",
+        "410",
+        "422",
+        "503"
+      ],
+      "query": {
+        "properties": [],
+        "required": []
+      },
+      "request": {
+        "properties": [
+          "assignees",
+          "body",
+          "duplicate_issue_id",
+          "issue_field_values",
+          "labels",
+          "milestone",
+          "state",
+          "state_reason",
+          "title",
+          "type"
+        ],
+        "required": [],
+        "any_of_required": []
+      }
+    },
+    {
+      "method": "GET",
+      "path": "/repos/{owner}/{repo}/issues/{issue_number}/comments",
+      "operation_id": "issues/list-comments",
+      "responses": [
+        "200",
+        "404",
+        "410"
+      ],
+      "query": {
+        "properties": [],
+        "required": []
+      },
+      "request": {
+        "properties": [],
+        "required": [],
+        "any_of_required": []
+      }
+    },
+    {
+      "method": "POST",
+      "path": "/repos/{owner}/{repo}/issues/{issue_number}/comments",
+      "operation_id": "issues/create-comment",
+      "responses": [
+        "201",
+        "403",
+        "404",
+        "410",
+        "422"
+      ],
+      "query": {
+        "properties": [],
+        "required": []
+      },
+      "request": {
+        "properties": [
+          "body"
+        ],
+        "required": [
+          "body"
+        ],
+        "any_of_required": []
+      }
+    },
+    {
+      "method": "GET",
+      "path": "/repos/{owner}/{repo}/issues/{issue_number}/labels",
+      "operation_id": "issues/list-labels-on-issue",
+      "responses": [
+        "200",
+        "301",
+        "404",
+        "410"
+      ],
+      "query": {
+        "properties": [],
+        "required": []
+      },
+      "request": {
+        "properties": [],
+        "required": [],
+        "any_of_required": []
+      }
+    },
+    {
+      "method": "POST",
+      "path": "/repos/{owner}/{repo}/issues/{issue_number}/labels",
+      "operation_id": "issues/add-labels",
+      "responses": [
+        "200",
+        "301",
+        "404",
+        "410",
+        "422"
+      ],
+      "query": {
+        "properties": [],
+        "required": []
+      },
+      "request": {
+        "properties": [
+          "labels"
+        ],
+        "required": [],
+        "any_of_required": []
+      }
+    },
+    {
+      "method": "PUT",
+      "path": "/repos/{owner}/{repo}/issues/{issue_number}/labels",
+      "operation_id": "issues/set-labels",
+      "responses": [
+        "200",
+        "301",
+        "404",
+        "410",
+        "422"
+      ],
+      "query": {
+        "properties": [],
+        "required": []
+      },
+      "request": {
+        "properties": [
+          "labels"
+        ],
+        "required": [],
+        "any_of_required": []
+      }
+    },
+    {
+      "method": "DELETE",
+      "path": "/repos/{owner}/{repo}/issues/{issue_number}/labels",
+      "operation_id": "issues/remove-all-labels",
+      "responses": [
+        "204",
+        "301",
+        "404",
+        "410"
+      ],
+      "query": {
+        "properties": [],
+        "required": []
+      },
+      "request": {
+        "properties": [],
+        "required": [],
+        "any_of_required": []
+      }
+    },
+    {
+      "method": "DELETE",
+      "path": "/repos/{owner}/{repo}/issues/{issue_number}/labels/{name}",
+      "operation_id": "issues/remove-label",
+      "responses": [
+        "200",
+        "301",
+        "404",
+        "410"
+      ],
+      "query": {
+        "properties": [],
+        "required": []
+      },
+      "request": {
+        "properties": [],
+        "required": [],
+        "any_of_required": []
+      }
+    },
+    {
+      "method": "POST",
+      "path": "/repos/{owner}/{repo}/issues/{issue_number}/assignees",
+      "operation_id": "issues/add-assignees",
+      "responses": [
+        "201"
+      ],
+      "query": {
+        "properties": [],
+        "required": []
+      },
+      "request": {
+        "properties": [
+          "assignees"
+        ],
+        "required": [],
+        "any_of_required": []
+      }
+    },
+    {
+      "method": "DELETE",
+      "path": "/repos/{owner}/{repo}/issues/{issue_number}/assignees",
+      "operation_id": "issues/remove-assignees",
+      "responses": [
+        "200"
+      ],
+      "query": {
+        "properties": [],
+        "required": []
+      },
+      "request": {
+        "properties": [
+          "assignees"
+        ],
+        "required": [],
+        "any_of_required": []
+      }
+    },
+    {
+      "method": "GET",
+      "path": "/repos/{owner}/{repo}/pulls",
+      "operation_id": "pulls/list",
+      "responses": [
+        "200",
+        "304",
+        "422"
+      ],
+      "query": {
+        "properties": [
+          "base",
+          "direction",
+          "head",
+          "sort",
+          "state"
+        ],
+        "required": []
+      },
+      "request": {
+        "properties": [],
+        "required": [],
+        "any_of_required": []
+      }
+    },
+    {
+      "method": "POST",
+      "path": "/repos/{owner}/{repo}/pulls",
+      "operation_id": "pulls/create",
+      "responses": [
+        "201",
+        "403",
+        "422"
+      ],
+      "query": {
+        "properties": [],
+        "required": []
+      },
+      "request": {
+        "properties": [
+          "base",
+          "body",
+          "draft",
+          "head",
+          "head_repo",
+          "issue",
+          "maintainer_can_modify",
+          "title"
+        ],
+        "required": [
+          "base",
+          "head"
+        ],
+        "any_of_required": []
+      }
+    },
+    {
+      "method": "GET",
+      "path": "/repos/{owner}/{repo}/pulls/{pull_number}",
+      "operation_id": "pulls/get",
+      "responses": [
+        "200",
+        "304",
+        "404",
+        "406",
+        "500",
+        "503"
+      ],
+      "query": {
+        "properties": [],
+        "required": []
+      },
+      "request": {
+        "properties": [],
+        "required": [],
+        "any_of_required": []
+      }
+    },
+    {
+      "method": "PATCH",
+      "path": "/repos/{owner}/{repo}/pulls/{pull_number}",
+      "operation_id": "pulls/update",
+      "responses": [
+        "200",
+        "403",
+        "422"
+      ],
+      "query": {
+        "properties": [],
+        "required": []
+      },
+      "request": {
+        "properties": [
+          "base",
+          "body",
+          "maintainer_can_modify",
+          "state",
+          "title"
+        ],
+        "required": [],
+        "any_of_required": []
+      }
+    },
+    {
+      "method": "GET",
+      "path": "/repos/{owner}/{repo}/pulls/{pull_number}/merge",
+      "operation_id": "pulls/check-if-merged",
+      "responses": [
+        "204",
+        "404"
+      ],
+      "query": {
+        "properties": [],
+        "required": []
+      },
+      "request": {
+        "properties": [],
+        "required": [],
+        "any_of_required": []
+      }
+    },
+    {
+      "method": "PUT",
+      "path": "/repos/{owner}/{repo}/pulls/{pull_number}/merge",
+      "operation_id": "pulls/merge",
+      "responses": [
+        "200",
+        "403",
+        "404",
+        "405",
+        "409",
+        "422"
+      ],
+      "query": {
+        "properties": [],
+        "required": []
+      },
+      "request": {
+        "properties": [
+          "commit_message",
+          "commit_title",
+          "merge_method",
+          "sha"
+        ],
+        "required": [],
+        "any_of_required": []
+      }
+    },
+    {
+      "method": "GET",
+      "path": "/repos/{owner}/{repo}/pulls/{pull_number}/requested_reviewers",
+      "operation_id": "pulls/list-requested-reviewers",
+      "responses": [
+        "200"
+      ],
+      "query": {
+        "properties": [],
+        "required": []
+      },
+      "request": {
+        "properties": [],
+        "required": [],
+        "any_of_required": []
+      }
+    },
+    {
+      "method": "POST",
+      "path": "/repos/{owner}/{repo}/pulls/{pull_number}/requested_reviewers",
+      "operation_id": "pulls/request-reviewers",
+      "responses": [
+        "201",
+        "403",
+        "422"
+      ],
+      "query": {
+        "properties": [],
+        "required": []
+      },
+      "request": {
+        "properties": [
+          "reviewers",
+          "team_reviewers"
+        ],
+        "required": [],
+        "any_of_required": [
+          [
+            "reviewers"
+          ],
+          [
+            "team_reviewers"
+          ]
+        ]
+      }
+    },
+    {
+      "method": "DELETE",
+      "path": "/repos/{owner}/{repo}/pulls/{pull_number}/requested_reviewers",
+      "operation_id": "pulls/remove-requested-reviewers",
+      "responses": [
+        "200",
+        "422"
+      ],
+      "query": {
+        "properties": [],
+        "required": []
+      },
+      "request": {
+        "properties": [
+          "reviewers",
+          "team_reviewers"
+        ],
+        "required": [
+          "reviewers"
+        ],
+        "any_of_required": []
+      }
+    },
+    {
+      "method": "GET",
+      "path": "/repos/{owner}/{repo}/pulls/{pull_number}/reviews",
+      "operation_id": "pulls/list-reviews",
+      "responses": [
+        "200"
+      ],
+      "query": {
+        "properties": [],
+        "required": []
+      },
+      "request": {
+        "properties": [],
+        "required": [],
+        "any_of_required": []
+      }
+    },
+    {
+      "method": "POST",
+      "path": "/repos/{owner}/{repo}/pulls/{pull_number}/reviews",
+      "operation_id": "pulls/create-review",
+      "responses": [
+        "200",
+        "403",
+        "422"
+      ],
+      "query": {
+        "properties": [],
+        "required": []
+      },
+      "request": {
+        "properties": [
+          "body",
+          "comments",
+          "commit_id",
+          "event"
+        ],
+        "required": [],
+        "any_of_required": []
+      }
+    },
+    {
+      "method": "GET",
+      "path": "/repos/{owner}/{repo}/pulls/{pull_number}/comments",
+      "operation_id": "pulls/list-review-comments",
+      "responses": [
+        "200"
+      ],
+      "query": {
+        "properties": [
+          "direction"
+        ],
+        "required": []
+      },
+      "request": {
+        "properties": [],
+        "required": [],
+        "any_of_required": []
+      }
+    },
+    {
+      "method": "POST",
+      "path": "/repos/{owner}/{repo}/pulls/{pull_number}/comments",
+      "operation_id": "pulls/create-review-comment",
+      "responses": [
+        "201",
+        "403",
+        "422"
+      ],
+      "query": {
+        "properties": [],
+        "required": []
+      },
+      "request": {
+        "properties": [
+          "body",
+          "commit_id",
+          "in_reply_to",
+          "line",
+          "path",
+          "position",
+          "side",
+          "start_line",
+          "start_side",
+          "subject_type"
+        ],
+        "required": [
+          "body",
+          "commit_id",
+          "path"
+        ],
+        "any_of_required": []
+      }
+    },
+    {
+      "method": "GET",
+      "path": "/repos/{owner}/{repo}/actions/runs",
+      "operation_id": "actions/list-workflow-runs-for-repo",
+      "responses": [
+        "200"
+      ],
+      "query": {
+        "properties": [],
+        "required": []
+      },
+      "request": {
+        "properties": [],
+        "required": [],
+        "any_of_required": []
+      }
+    },
+    {
+      "method": "GET",
+      "path": "/repos/{owner}/{repo}/actions/runs/{run_id}/jobs",
+      "operation_id": "actions/list-jobs-for-workflow-run",
+      "responses": [
+        "200"
+      ],
+      "query": {
+        "properties": [
+          "filter"
+        ],
+        "required": []
+      },
+      "request": {
+        "properties": [],
+        "required": [],
+        "any_of_required": []
+      }
+    },
+    {
+      "method": "GET",
+      "path": "/repos/{owner}/{repo}/actions/jobs/{job_id}",
+      "operation_id": "actions/get-job-for-workflow-run",
+      "responses": [
+        "200"
+      ],
+      "query": {
+        "properties": [],
+        "required": []
+      },
+      "request": {
+        "properties": [],
+        "required": [],
+        "any_of_required": []
+      }
+    },
+    {
+      "method": "GET",
+      "path": "/repos/{owner}/{repo}/releases",
+      "operation_id": "repos/list-releases",
+      "responses": [
+        "200",
+        "404"
+      ],
+      "query": {
+        "properties": [],
+        "required": []
+      },
+      "request": {
+        "properties": [],
+        "required": [],
+        "any_of_required": []
+      }
+    },
+    {
+      "method": "POST",
+      "path": "/repos/{owner}/{repo}/releases",
+      "operation_id": "repos/create-release",
+      "responses": [
+        "201",
+        "404",
+        "422"
+      ],
+      "query": {
+        "properties": [],
+        "required": []
+      },
+      "request": {
+        "properties": [
+          "body",
+          "discussion_category_name",
+          "draft",
+          "generate_release_notes",
+          "make_latest",
+          "name",
+          "prerelease",
+          "tag_name",
+          "target_commitish"
+        ],
+        "required": [
+          "tag_name"
+        ],
+        "any_of_required": []
+      }
+    }
+  ]
+}

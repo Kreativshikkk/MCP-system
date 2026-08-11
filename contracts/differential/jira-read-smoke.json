@@ -1,0 +1,1 @@
+{"name":"jira-read-smoke","steps":[{"id":"current-user","real":{"method":"GET","path":"/rest/api/3/myself"},"replica":{"operation":"get_current_user"},"expect":{"real_status":200}}]}

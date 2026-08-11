@@ -1,0 +1,228 @@
+[template]
+id = "software_company_default"
+name = "Multi-service software company"
+version = "1.0.0"
+mcp_surfaces = ["github_rest_v3", "gitlab_rest_v4", "jira_rest_v3", "bitbucket_cloud_v2", "linear_graphql", "youtrack_rest"]
+
+[[services]]
+instance_id = "github"
+plugin = "github"
+version = "0.1.0"
+
+[services.seed]
+created_at = "2026-01-01T00:00:00+00:00"
+
+[services.seed.organization]
+login = "acme"
+name = "Acme Software"
+
+[[services.seed.users]]
+login = "director"
+name = "Director"
+email = "director@acme.local"
+role = "admin"
+type = "Bot"
+
+[[services.seed.users]]
+login = "lead"
+name = "Team Lead"
+email = "lead@acme.local"
+role = "admin"
+type = "Bot"
+
+[[services.seed.users]]
+login = "engineer"
+name = "Software Engineer"
+email = "engineer@acme.local"
+role = "member"
+type = "Bot"
+
+[[services.seed.users]]
+login = "qa"
+name = "QA Engineer"
+email = "qa@acme.local"
+role = "member"
+type = "Bot"
+
+[[services.seed.repositories]]
+name = "product"
+description = "Primary product repository"
+private = true
+default_branch = "main"
+default_labels = true
+
+[[services]]
+instance_id = "gitlab"
+plugin = "gitlab"
+version = "0.1.0"
+
+[services.seed]
+created_at = "2026-01-01T00:00:00+00:00"
+
+[services.seed.group]
+path = "acme"
+name = "Acme Software"
+visibility = "private"
+
+[[services.seed.users]]
+username = "director"
+name = "Director"
+email = "director@acme.local"
+admin = true
+access_level = 50
+
+[[services.seed.users]]
+username = "lead"
+name = "Team Lead"
+email = "lead@acme.local"
+access_level = 50
+
+[[services.seed.users]]
+username = "engineer"
+name = "Software Engineer"
+email = "engineer@acme.local"
+access_level = 30
+
+[[services.seed.users]]
+username = "qa"
+name = "QA Engineer"
+email = "qa@acme.local"
+access_level = 30
+
+[[services.seed.projects]]
+path = "product"
+name = "Product"
+description = "Primary product project"
+visibility = "private"
+default_branch = "main"
+
+[[services]]
+instance_id = "jira"
+plugin = "jira"
+version = "0.1.0"
+
+[services.seed]
+created_at = "2026-01-01T00:00:00+00:00"
+
+[[services.seed.users]]
+account_id = "director"
+display_name = "Director"
+email = "director@acme.local"
+admin = true
+role = "Administrator"
+
+[[services.seed.users]]
+account_id = "lead"
+display_name = "Team Lead"
+email = "lead@acme.local"
+role = "Administrator"
+
+[[services.seed.users]]
+account_id = "engineer"
+display_name = "Software Engineer"
+email = "engineer@acme.local"
+role = "Member"
+
+[[services.seed.users]]
+account_id = "qa"
+display_name = "QA Engineer"
+email = "qa@acme.local"
+role = "Member"
+
+[[services.seed.projects]]
+key = "PROD"
+name = "Product"
+description = "Primary product delivery project"
+lead = "lead"
+board_name = "Product delivery"
+board_type = "scrum"
+
+[[services]]
+instance_id="bitbucket"
+plugin="bitbucket"
+version="0.1.0"
+[services.seed]
+created_at="2026-01-01T00:00:00+00:00"
+[services.seed.workspace]
+slug="acme"
+name="Acme Software"
+is_private=true
+[[services.seed.users]]
+username="director"
+display_name="Director"
+email="director@acme.local"
+permission="admin"
+[[services.seed.users]]
+username="lead"
+display_name="Team Lead"
+email="lead@acme.local"
+permission="admin"
+[[services.seed.users]]
+username="engineer"
+display_name="Software Engineer"
+email="engineer@acme.local"
+permission="write"
+[[services.seed.users]]
+username="qa"
+display_name="QA Engineer"
+email="qa@acme.local"
+permission="write"
+[[services.seed.repositories]]
+slug="product"
+name="Product"
+is_private=true
+mainbranch="main"
+
+[[services]]
+instance_id="linear"
+plugin="linear"
+version="0.1.0"
+[services.seed]
+created_at="2026-01-01T00:00:00+00:00"
+[services.seed.team]
+key="PROD"
+name="Product"
+[[services.seed.users]]
+email="director@acme.local"
+name="director"
+admin=true
+role="admin"
+[[services.seed.users]]
+email="lead@acme.local"
+name="lead"
+admin=true
+role="admin"
+[[services.seed.users]]
+email="engineer@acme.local"
+name="engineer"
+[[services.seed.users]]
+email="qa@acme.local"
+name="qa"
+
+[[services]]
+instance_id="youtrack"
+plugin="youtrack"
+version="0.1.0"
+[services.seed.project]
+short_name="PROD"
+name="Product"
+leader_id="user-2"
+board_name="Product Board"
+[[services.seed.users]]
+login="director"
+full_name="Director"
+email="director@acme.local"
+admin=true
+[[services.seed.users]]
+login="lead"
+full_name="Team Lead"
+email="lead@acme.local"
+admin=true
+[[services.seed.users]]
+login="engineer"
+full_name="Software Engineer"
+email="engineer@acme.local"
+[[services.seed.users]]
+login="qa"
+full_name="QA Engineer"
+email="qa@acme.local"

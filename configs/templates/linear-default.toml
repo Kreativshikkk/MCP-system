@@ -1,0 +1,37 @@
+[template]
+id="linear_default"
+name="Linear software company bootstrap"
+version="1.0.0"
+mcp_surfaces=["linear_graphql"]
+[[services]]
+instance_id="linear"
+plugin="linear"
+version="0.1.0"
+[services.seed]
+created_at="2026-01-01T00:00:00+00:00"
+[services.seed.team]
+key="PROD"
+name="Product"
+description="Product engineering"
+[[services.seed.users]]
+email="director@acme.local"
+name="director"
+display_name="Director"
+admin=true
+role="admin"
+[[services.seed.users]]
+email="lead@acme.local"
+name="lead"
+display_name="Team Lead"
+admin=true
+role="admin"
+[[services.seed.users]]
+email="engineer@acme.local"
+name="engineer"
+display_name="Software Engineer"
+role="member"
+[[services.seed.users]]
+email="qa@acme.local"
+name="qa"
+display_name="QA Engineer"
+role="member"

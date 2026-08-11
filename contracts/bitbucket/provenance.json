@@ -1,0 +1,17 @@
+{
+  "apiVersion": "2.0",
+  "canonicalSource": "https://api.bitbucket.org/swagger.json",
+  "extractionCommand": "PYTHONPATH=src .venv/bin/python scripts/update_bitbucket_contract.py /path/to/pinned/swagger.json",
+  "retrievedAt": "2026-08-07",
+  "sourceRevision": null,
+  "sourceSha256": "dc11be99fe57eb991194de80cdfe75e425cd0f590e6cf83e9dc3d2a22d4943de",
+  "scope": "Identity, workspace membership, repositories, commits/files/branches, issues/comments, pull-request review/merge, pipelines/steps/logs and commit statuses",
+  "excluded": [
+    "workspace and repository administration",
+    "webhooks and OAuth consumers",
+    "deployments and environments",
+    "downloads and package registries",
+    "SSH/GPG keys and pipeline variables",
+    "imports, exports and attachments"
+  ]
+}

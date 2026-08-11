@@ -1,0 +1,35 @@
+services:
+  gitlab:
+    image: gitlab/gitlab-ce:19.2.0-ce.0
+    hostname: gitlab.local
+    environment:
+      GITLAB_ROOT_PASSWORD: "9vQ4xT7kL2!P8dR6#N3mZ"
+      GITLAB_OMNIBUS_CONFIG: |
+        external_url 'http://gitlab.local:8929'
+        gitlab_rails['gitlab_shell_ssh_port'] = 2224
+        prometheus_monitoring['enable'] = false
+        alertmanager['enable'] = false
+        gitlab_exporter['enable'] = false
+        node_exporter['enable'] = false
+        redis_exporter['enable'] = false
+        postgres_exporter['enable'] = false
+        puma['worker_processes'] = 0
+        sidekiq['max_concurrency'] = 10
+    ports:
+      - "127.0.0.1:8929:8929"
+    volumes:
+      - gitlab_differential_config:/etc/gitlab
+      - gitlab_differential_logs:/var/log/gitlab
+      - gitlab_differential_data:/var/opt/gitlab
+    shm_size: "256m"
+    healthcheck:
+      test: ["CMD", "curl", "--fail", "--silent", "http://127.0.0.1:8929/-/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 60
+      start_period: 180s
+
+volumes:
+  gitlab_differential_config:
+  gitlab_differential_logs:
+  gitlab_differential_data:

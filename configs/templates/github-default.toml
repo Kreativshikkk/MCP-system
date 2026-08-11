@@ -1,0 +1,52 @@
+[template]
+id = "github_default"
+name = "GitHub software company bootstrap"
+version = "1.0.0"
+mcp_surfaces = ["github_rest_v3"]
+
+[[services]]
+instance_id = "github"
+plugin = "github"
+version = "0.1.0"
+
+[services.seed]
+created_at = "2026-01-01T00:00:00+00:00"
+
+[services.seed.organization]
+login = "acme"
+name = "Acme Software"
+
+[[services.seed.users]]
+login = "director"
+name = "Director"
+email = "director@acme.local"
+role = "admin"
+type = "Bot"
+
+[[services.seed.users]]
+login = "lead"
+name = "Team Lead"
+email = "lead@acme.local"
+role = "admin"
+type = "Bot"
+
+[[services.seed.users]]
+login = "engineer"
+name = "Software Engineer"
+email = "engineer@acme.local"
+role = "member"
+type = "Bot"
+
+[[services.seed.users]]
+login = "qa"
+name = "QA Engineer"
+email = "qa@acme.local"
+role = "member"
+type = "Bot"
+
+[[services.seed.repositories]]
+name = "product"
+description = "Primary product repository"
+private = true
+default_branch = "main"
+default_labels = true

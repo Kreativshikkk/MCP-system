@@ -1,0 +1,1931 @@
+{
+  "apiVersion": "2.0",
+  "operationCount": 36,
+  "operations": [
+    {
+      "errorResponses": [
+        "401"
+      ],
+      "localOperation": "get_current_user",
+      "mcpTool": "bitbucket_get_current_user",
+      "method": "GET",
+      "operationId": null,
+      "parameters": [],
+      "path": "/user",
+      "requiredParameters": [],
+      "responses": [
+        "200",
+        "401"
+      ],
+      "successResponses": [
+        "200"
+      ],
+      "summary": "Get current user",
+      "workflow": "identity"
+    },
+    {
+      "errorResponses": [
+        "404"
+      ],
+      "localOperation": "get_workspace",
+      "mcpTool": "bitbucket_get_workspace",
+      "method": "GET",
+      "operationId": null,
+      "parameters": [
+        {
+          "in": "path",
+          "name": "workspace",
+          "required": true,
+          "schemaRef": null,
+          "type": "string"
+        }
+      ],
+      "path": "/workspaces/{workspace}",
+      "requiredParameters": [
+        "workspace"
+      ],
+      "responses": [
+        "200",
+        "404"
+      ],
+      "successResponses": [
+        "200"
+      ],
+      "summary": "Get a workspace",
+      "workflow": "membership"
+    },
+    {
+      "errorResponses": [
+        "400",
+        "401"
+      ],
+      "localOperation": "list_workspace_members",
+      "mcpTool": "bitbucket_list_workspace_members",
+      "method": "GET",
+      "operationId": null,
+      "parameters": [
+        {
+          "in": "path",
+          "name": "workspace",
+          "required": true,
+          "schemaRef": null,
+          "type": "string"
+        }
+      ],
+      "path": "/workspaces/{workspace}/members",
+      "requiredParameters": [
+        "workspace"
+      ],
+      "responses": [
+        "200",
+        "400",
+        "401"
+      ],
+      "successResponses": [
+        "200"
+      ],
+      "summary": "List users in a workspace",
+      "workflow": "membership"
+    },
+    {
+      "errorResponses": [
+        "404",
+        "410"
+      ],
+      "localOperation": "list_repositories",
+      "mcpTool": "bitbucket_list_repositories",
+      "method": "GET",
+      "operationId": null,
+      "parameters": [
+        {
+          "in": "path",
+          "name": "workspace",
+          "required": true,
+          "schemaRef": null,
+          "type": "string"
+        },
+        {
+          "in": "query",
+          "name": "role",
+          "required": false,
+          "schemaRef": null,
+          "type": "string"
+        },
+        {
+          "in": "query",
+          "name": "q",
+          "required": false,
+          "schemaRef": null,
+          "type": "string"
+        },
+        {
+          "in": "query",
+          "name": "sort",
+          "required": false,
+          "schemaRef": null,
+          "type": "string"
+        }
+      ],
+      "path": "/repositories/{workspace}",
+      "requiredParameters": [
+        "workspace"
+      ],
+      "responses": [
+        "200",
+        "404",
+        "410"
+      ],
+      "successResponses": [
+        "200"
+      ],
+      "summary": "List repositories in a workspace",
+      "workflow": "repository"
+    },
+    {
+      "errorResponses": [
+        "403",
+        "404"
+      ],
+      "localOperation": "get_repository",
+      "mcpTool": "bitbucket_get_repository",
+      "method": "GET",
+      "operationId": null,
+      "parameters": [
+        {
+          "in": "path",
+          "name": "repo_slug",
+          "required": true,
+          "schemaRef": null,
+          "type": "string"
+        },
+        {
+          "in": "path",
+          "name": "workspace",
+          "required": true,
+          "schemaRef": null,
+          "type": "string"
+        }
+      ],
+      "path": "/repositories/{workspace}/{repo_slug}",
+      "requiredParameters": [
+        "repo_slug",
+        "workspace"
+      ],
+      "responses": [
+        "200",
+        "403",
+        "404"
+      ],
+      "successResponses": [
+        "200"
+      ],
+      "summary": "Get a repository",
+      "workflow": "repository"
+    },
+    {
+      "errorResponses": [
+        "404"
+      ],
+      "localOperation": "list_commits",
+      "mcpTool": "bitbucket_list_commits",
+      "method": "GET",
+      "operationId": null,
+      "parameters": [
+        {
+          "in": "path",
+          "name": "repo_slug",
+          "required": true,
+          "schemaRef": null,
+          "type": "string"
+        },
+        {
+          "in": "path",
+          "name": "workspace",
+          "required": true,
+          "schemaRef": null,
+          "type": "string"
+        }
+      ],
+      "path": "/repositories/{workspace}/{repo_slug}/commits",
+      "requiredParameters": [
+        "repo_slug",
+        "workspace"
+      ],
+      "responses": [
+        "200",
+        "404"
+      ],
+      "successResponses": [
+        "200"
+      ],
+      "summary": "List commits",
+      "workflow": "source"
+    },
+    {
+      "errorResponses": [
+        "404"
+      ],
+      "localOperation": "get_commit",
+      "mcpTool": "bitbucket_get_commit",
+      "method": "GET",
+      "operationId": null,
+      "parameters": [
+        {
+          "in": "path",
+          "name": "commit",
+          "required": true,
+          "schemaRef": null,
+          "type": "string"
+        },
+        {
+          "in": "path",
+          "name": "repo_slug",
+          "required": true,
+          "schemaRef": null,
+          "type": "string"
+        },
+        {
+          "in": "path",
+          "name": "workspace",
+          "required": true,
+          "schemaRef": null,
+          "type": "string"
+        }
+      ],
+      "path": "/repositories/{workspace}/{repo_slug}/commit/{commit}",
+      "requiredParameters": [
+        "commit",
+        "repo_slug",
+        "workspace"
+      ],
+      "responses": [
+        "200",
+        "404"
+      ],
+      "successResponses": [
+        "200"
+      ],
+      "summary": "Get a commit",
+      "workflow": "source"
+    },
+    {
+      "errorResponses": [
+        "403",
+        "404"
+      ],
+      "localOperation": "create_commit",
+      "mcpTool": "bitbucket_create_commit",
+      "method": "POST",
+      "operationId": null,
+      "parameters": [
+        {
+          "in": "path",
+          "name": "repo_slug",
+          "required": true,
+          "schemaRef": null,
+          "type": "string"
+        },
+        {
+          "in": "path",
+          "name": "workspace",
+          "required": true,
+          "schemaRef": null,
+          "type": "string"
+        },
+        {
+          "in": "query",
+          "name": "message",
+          "required": false,
+          "schemaRef": null,
+          "type": "string"
+        },
+        {
+          "in": "query",
+          "name": "author",
+          "required": false,
+          "schemaRef": null,
+          "type": "string"
+        },
+        {
+          "in": "query",
+          "name": "parents",
+          "required": false,
+          "schemaRef": null,
+          "type": "string"
+        },
+        {
+          "in": "query",
+          "name": "files",
+          "required": false,
+          "schemaRef": null,
+          "type": "string"
+        },
+        {
+          "in": "query",
+          "name": "branch",
+          "required": false,
+          "schemaRef": null,
+          "type": "string"
+        }
+      ],
+      "path": "/repositories/{workspace}/{repo_slug}/src",
+      "requiredParameters": [
+        "repo_slug",
+        "workspace"
+      ],
+      "responses": [
+        "201",
+        "403",
+        "404"
+      ],
+      "successResponses": [
+        "201"
+      ],
+      "summary": "Create a commit by uploading a file",
+      "workflow": "source"
+    },
+    {
+      "errorResponses": [
+        "404",
+        "555"
+      ],
+      "localOperation": "get_file",
+      "mcpTool": "bitbucket_get_file",
+      "method": "GET",
+      "operationId": null,
+      "parameters": [
+        {
+          "in": "path",
+          "name": "commit",
+          "required": true,
+          "schemaRef": null,
+          "type": "string"
+        },
+        {
+          "in": "path",
+          "name": "path",
+          "required": true,
+          "schemaRef": null,
+          "type": "string"
+        },
+        {
+          "in": "path",
+          "name": "repo_slug",
+          "required": true,
+          "schemaRef": null,
+          "type": "string"
+        },
+        {
+          "in": "path",
+          "name": "workspace",
+          "required": true,
+          "schemaRef": null,
+          "type": "string"
+        },
+        {
+          "in": "query",
+          "name": "format",
+          "required": false,
+          "schemaRef": null,
+          "type": "string"
+        },
+        {
+          "in": "query",
+          "name": "q",
+          "required": false,
+          "schemaRef": null,
+          "type": "string"
+        },
+        {
+          "in": "query",
+          "name": "sort",
+          "required": false,
+          "schemaRef": null,
+          "type": "string"
+        },
+        {
+          "in": "query",
+          "name": "max_depth",
+          "required": false,
+          "schemaRef": null,
+          "type": "integer"
+        }
+      ],
+      "path": "/repositories/{workspace}/{repo_slug}/src/{commit}/{path}",
+      "requiredParameters": [
+        "commit",
+        "path",
+        "repo_slug",
+        "workspace"
+      ],
+      "responses": [
+        "200",
+        "404",
+        "555"
+      ],
+      "successResponses": [
+        "200"
+      ],
+      "summary": "Get file or directory contents",
+      "workflow": "source"
+    },
+    {
+      "errorResponses": [
+        "555"
+      ],
+      "localOperation": "get_diff",
+      "mcpTool": "bitbucket_get_diff",
+      "method": "GET",
+      "operationId": null,
+      "parameters": [
+        {
+          "in": "path",
+          "name": "repo_slug",
+          "required": true,
+          "schemaRef": null,
+          "type": "string"
+        },
+        {
+          "in": "path",
+          "name": "spec",
+          "required": true,
+          "schemaRef": null,
+          "type": "string"
+        },
+        {
+          "in": "path",
+          "name": "workspace",
+          "required": true,
+          "schemaRef": null,
+          "type": "string"
+        },
+        {
+          "in": "query",
+          "name": "context",
+          "required": false,
+          "schemaRef": null,
+          "type": "integer"
+        },
+        {
+          "in": "query",
+          "name": "path",
+          "required": false,
+          "schemaRef": null,
+          "type": "string"
+        },
+        {
+          "in": "query",
+          "name": "ignore_whitespace",
+          "required": false,
+          "schemaRef": null,
+          "type": "boolean"
+        },
+        {
+          "in": "query",
+          "name": "binary",
+          "required": false,
+          "schemaRef": null,
+          "type": "boolean"
+        },
+        {
+          "in": "query",
+          "name": "renames",
+          "required": false,
+          "schemaRef": null,
+          "type": "boolean"
+        },
+        {
+          "in": "query",
+          "name": "merge",
+          "required": false,
+          "schemaRef": null,
+          "type": "boolean"
+        },
+        {
+          "in": "query",
+          "name": "topic",
+          "required": false,
+          "schemaRef": null,
+          "type": "boolean"
+        }
+      ],
+      "path": "/repositories/{workspace}/{repo_slug}/diff/{spec}",
+      "requiredParameters": [
+        "repo_slug",
+        "spec",
+        "workspace"
+      ],
+      "responses": [
+        "200",
+        "555"
+      ],
+      "successResponses": [
+        "200"
+      ],
+      "summary": "Compare two commits",
+      "workflow": "source"
+    },
+    {
+      "errorResponses": [
+        "403",
+        "404"
+      ],
+      "localOperation": "list_branches",
+      "mcpTool": "bitbucket_list_branches",
+      "method": "GET",
+      "operationId": null,
+      "parameters": [
+        {
+          "in": "path",
+          "name": "repo_slug",
+          "required": true,
+          "schemaRef": null,
+          "type": "string"
+        },
+        {
+          "in": "path",
+          "name": "workspace",
+          "required": true,
+          "schemaRef": null,
+          "type": "string"
+        },
+        {
+          "in": "query",
+          "name": "q",
+          "required": false,
+          "schemaRef": null,
+          "type": "string"
+        },
+        {
+          "in": "query",
+          "name": "sort",
+          "required": false,
+          "schemaRef": null,
+          "type": "string"
+        }
+      ],
+      "path": "/repositories/{workspace}/{repo_slug}/refs/branches",
+      "requiredParameters": [
+        "repo_slug",
+        "workspace"
+      ],
+      "responses": [
+        "200",
+        "403",
+        "404"
+      ],
+      "successResponses": [
+        "200"
+      ],
+      "summary": "List open branches",
+      "workflow": "branch"
+    },
+    {
+      "errorResponses": [
+        "403",
+        "404"
+      ],
+      "localOperation": "create_branch",
+      "mcpTool": "bitbucket_create_branch",
+      "method": "POST",
+      "operationId": null,
+      "parameters": [
+        {
+          "in": "path",
+          "name": "repo_slug",
+          "required": true,
+          "schemaRef": null,
+          "type": "string"
+        },
+        {
+          "in": "path",
+          "name": "workspace",
+          "required": true,
+          "schemaRef": null,
+          "type": "string"
+        }
+      ],
+      "path": "/repositories/{workspace}/{repo_slug}/refs/branches",
+      "requiredParameters": [
+        "repo_slug",
+        "workspace"
+      ],
+      "responses": [
+        "201",
+        "403",
+        "404"
+      ],
+      "successResponses": [
+        "201"
+      ],
+      "summary": "Create a branch",
+      "workflow": "branch"
+    },
+    {
+      "errorResponses": [
+        "403",
+        "404"
+      ],
+      "localOperation": "get_branch",
+      "mcpTool": "bitbucket_get_branch",
+      "method": "GET",
+      "operationId": null,
+      "parameters": [
+        {
+          "in": "path",
+          "name": "name",
+          "required": true,
+          "schemaRef": null,
+          "type": "string"
+        },
+        {
+          "in": "path",
+          "name": "repo_slug",
+          "required": true,
+          "schemaRef": null,
+          "type": "string"
+        },
+        {
+          "in": "path",
+          "name": "workspace",
+          "required": true,
+          "schemaRef": null,
+          "type": "string"
+        }
+      ],
+      "path": "/repositories/{workspace}/{repo_slug}/refs/branches/{name}",
+      "requiredParameters": [
+        "name",
+        "repo_slug",
+        "workspace"
+      ],
+      "responses": [
+        "200",
+        "403",
+        "404"
+      ],
+      "successResponses": [
+        "200"
+      ],
+      "summary": "Get a branch",
+      "workflow": "branch"
+    },
+    {
+      "errorResponses": [
+        "403",
+        "404"
+      ],
+      "localOperation": "delete_branch",
+      "mcpTool": "bitbucket_delete_branch",
+      "method": "DELETE",
+      "operationId": null,
+      "parameters": [
+        {
+          "in": "path",
+          "name": "name",
+          "required": true,
+          "schemaRef": null,
+          "type": "string"
+        },
+        {
+          "in": "path",
+          "name": "repo_slug",
+          "required": true,
+          "schemaRef": null,
+          "type": "string"
+        },
+        {
+          "in": "path",
+          "name": "workspace",
+          "required": true,
+          "schemaRef": null,
+          "type": "string"
+        }
+      ],
+      "path": "/repositories/{workspace}/{repo_slug}/refs/branches/{name}",
+      "requiredParameters": [
+        "name",
+        "repo_slug",
+        "workspace"
+      ],
+      "responses": [
+        "204",
+        "403",
+        "404"
+      ],
+      "successResponses": [
+        "204"
+      ],
+      "summary": "Delete a branch",
+      "workflow": "branch"
+    },
+    {
+      "errorResponses": [
+        "404"
+      ],
+      "localOperation": "list_issues",
+      "mcpTool": "bitbucket_list_issues",
+      "method": "GET",
+      "operationId": null,
+      "parameters": [
+        {
+          "in": "path",
+          "name": "repo_slug",
+          "required": true,
+          "schemaRef": null,
+          "type": "string"
+        },
+        {
+          "in": "path",
+          "name": "workspace",
+          "required": true,
+          "schemaRef": null,
+          "type": "string"
+        }
+      ],
+      "path": "/repositories/{workspace}/{repo_slug}/issues",
+      "requiredParameters": [
+        "repo_slug",
+        "workspace"
+      ],
+      "responses": [
+        "200",
+        "404"
+      ],
+      "successResponses": [
+        "200"
+      ],
+      "summary": "List issues",
+      "workflow": "ticket"
+    },
+    {
+      "errorResponses": [
+        "401",
+        "403",
+        "404"
+      ],
+      "localOperation": "create_issue",
+      "mcpTool": "bitbucket_create_issue",
+      "method": "POST",
+      "operationId": null,
+      "parameters": [
+        {
+          "in": "path",
+          "name": "repo_slug",
+          "required": true,
+          "schemaRef": null,
+          "type": "string"
+        },
+        {
+          "in": "path",
+          "name": "workspace",
+          "required": true,
+          "schemaRef": null,
+          "type": "string"
+        },
+        {
+          "in": "body",
+          "name": "_body",
+          "required": true,
+          "schemaRef": "#/definitions/issue",
+          "type": null
+        }
+      ],
+      "path": "/repositories/{workspace}/{repo_slug}/issues",
+      "requiredParameters": [
+        "_body",
+        "repo_slug",
+        "workspace"
+      ],
+      "responses": [
+        "201",
+        "401",
+        "403",
+        "404"
+      ],
+      "successResponses": [
+        "201"
+      ],
+      "summary": "Create an issue",
+      "workflow": "ticket"
+    },
+    {
+      "errorResponses": [
+        "403",
+        "404",
+        "410"
+      ],
+      "localOperation": "get_issue",
+      "mcpTool": "bitbucket_get_issue",
+      "method": "GET",
+      "operationId": null,
+      "parameters": [
+        {
+          "in": "path",
+          "name": "issue_id",
+          "required": true,
+          "schemaRef": null,
+          "type": "string"
+        },
+        {
+          "in": "path",
+          "name": "repo_slug",
+          "required": true,
+          "schemaRef": null,
+          "type": "string"
+        },
+        {
+          "in": "path",
+          "name": "workspace",
+          "required": true,
+          "schemaRef": null,
+          "type": "string"
+        }
+      ],
+      "path": "/repositories/{workspace}/{repo_slug}/issues/{issue_id}",
+      "requiredParameters": [
+        "issue_id",
+        "repo_slug",
+        "workspace"
+      ],
+      "responses": [
+        "200",
+        "403",
+        "404",
+        "410"
+      ],
+      "successResponses": [
+        "200"
+      ],
+      "summary": "Get an issue",
+      "workflow": "ticket"
+    },
+    {
+      "errorResponses": [
+        "403",
+        "404"
+      ],
+      "localOperation": "update_issue",
+      "mcpTool": "bitbucket_update_issue",
+      "method": "PUT",
+      "operationId": null,
+      "parameters": [
+        {
+          "in": "path",
+          "name": "issue_id",
+          "required": true,
+          "schemaRef": null,
+          "type": "string"
+        },
+        {
+          "in": "path",
+          "name": "repo_slug",
+          "required": true,
+          "schemaRef": null,
+          "type": "string"
+        },
+        {
+          "in": "path",
+          "name": "workspace",
+          "required": true,
+          "schemaRef": null,
+          "type": "string"
+        }
+      ],
+      "path": "/repositories/{workspace}/{repo_slug}/issues/{issue_id}",
+      "requiredParameters": [
+        "issue_id",
+        "repo_slug",
+        "workspace"
+      ],
+      "responses": [
+        "200",
+        "403",
+        "404"
+      ],
+      "successResponses": [
+        "200"
+      ],
+      "summary": "Update an issue",
+      "workflow": "ticket"
+    },
+    {
+      "errorResponses": [],
+      "localOperation": "list_issue_comments",
+      "mcpTool": "bitbucket_list_issue_comments",
+      "method": "GET",
+      "operationId": null,
+      "parameters": [
+        {
+          "in": "path",
+          "name": "issue_id",
+          "required": true,
+          "schemaRef": null,
+          "type": "string"
+        },
+        {
+          "in": "path",
+          "name": "repo_slug",
+          "required": true,
+          "schemaRef": null,
+          "type": "string"
+        },
+        {
+          "in": "path",
+          "name": "workspace",
+          "required": true,
+          "schemaRef": null,
+          "type": "string"
+        },
+        {
+          "in": "query",
+          "name": "q",
+          "required": false,
+          "schemaRef": null,
+          "type": "string"
+        }
+      ],
+      "path": "/repositories/{workspace}/{repo_slug}/issues/{issue_id}/comments",
+      "requiredParameters": [
+        "issue_id",
+        "repo_slug",
+        "workspace"
+      ],
+      "responses": [
+        "200"
+      ],
+      "successResponses": [
+        "200"
+      ],
+      "summary": "List comments on an issue",
+      "workflow": "ticket"
+    },
+    {
+      "errorResponses": [
+        "400"
+      ],
+      "localOperation": "create_issue_comment",
+      "mcpTool": "bitbucket_create_issue_comment",
+      "method": "POST",
+      "operationId": null,
+      "parameters": [
+        {
+          "in": "path",
+          "name": "issue_id",
+          "required": true,
+          "schemaRef": null,
+          "type": "string"
+        },
+        {
+          "in": "path",
+          "name": "repo_slug",
+          "required": true,
+          "schemaRef": null,
+          "type": "string"
+        },
+        {
+          "in": "path",
+          "name": "workspace",
+          "required": true,
+          "schemaRef": null,
+          "type": "string"
+        },
+        {
+          "in": "body",
+          "name": "_body",
+          "required": true,
+          "schemaRef": "#/definitions/issue_comment",
+          "type": null
+        }
+      ],
+      "path": "/repositories/{workspace}/{repo_slug}/issues/{issue_id}/comments",
+      "requiredParameters": [
+        "_body",
+        "issue_id",
+        "repo_slug",
+        "workspace"
+      ],
+      "responses": [
+        "201",
+        "400"
+      ],
+      "successResponses": [
+        "201"
+      ],
+      "summary": "Create a comment on an issue",
+      "workflow": "ticket"
+    },
+    {
+      "errorResponses": [
+        "401",
+        "404"
+      ],
+      "localOperation": "list_pull_requests",
+      "mcpTool": "bitbucket_list_pull_requests",
+      "method": "GET",
+      "operationId": null,
+      "parameters": [
+        {
+          "in": "path",
+          "name": "repo_slug",
+          "required": true,
+          "schemaRef": null,
+          "type": "string"
+        },
+        {
+          "in": "path",
+          "name": "workspace",
+          "required": true,
+          "schemaRef": null,
+          "type": "string"
+        },
+        {
+          "in": "query",
+          "name": "state",
+          "required": false,
+          "schemaRef": null,
+          "type": "string"
+        }
+      ],
+      "path": "/repositories/{workspace}/{repo_slug}/pullrequests",
+      "requiredParameters": [
+        "repo_slug",
+        "workspace"
+      ],
+      "responses": [
+        "200",
+        "401",
+        "404"
+      ],
+      "successResponses": [
+        "200"
+      ],
+      "summary": "List pull requests",
+      "workflow": "review"
+    },
+    {
+      "errorResponses": [
+        "400",
+        "401"
+      ],
+      "localOperation": "create_pull_request",
+      "mcpTool": "bitbucket_create_pull_request",
+      "method": "POST",
+      "operationId": null,
+      "parameters": [
+        {
+          "in": "path",
+          "name": "repo_slug",
+          "required": true,
+          "schemaRef": null,
+          "type": "string"
+        },
+        {
+          "in": "path",
+          "name": "workspace",
+          "required": true,
+          "schemaRef": null,
+          "type": "string"
+        },
+        {
+          "in": "body",
+          "name": "_body",
+          "required": false,
+          "schemaRef": "#/definitions/pullrequest",
+          "type": null
+        }
+      ],
+      "path": "/repositories/{workspace}/{repo_slug}/pullrequests",
+      "requiredParameters": [
+        "repo_slug",
+        "workspace"
+      ],
+      "responses": [
+        "201",
+        "400",
+        "401"
+      ],
+      "successResponses": [
+        "201"
+      ],
+      "summary": "Create a pull request",
+      "workflow": "review"
+    },
+    {
+      "errorResponses": [
+        "401",
+        "404"
+      ],
+      "localOperation": "get_pull_request",
+      "mcpTool": "bitbucket_get_pull_request",
+      "method": "GET",
+      "operationId": null,
+      "parameters": [
+        {
+          "in": "path",
+          "name": "pull_request_id",
+          "required": true,
+          "schemaRef": null,
+          "type": "integer"
+        },
+        {
+          "in": "path",
+          "name": "repo_slug",
+          "required": true,
+          "schemaRef": null,
+          "type": "string"
+        },
+        {
+          "in": "path",
+          "name": "workspace",
+          "required": true,
+          "schemaRef": null,
+          "type": "string"
+        }
+      ],
+      "path": "/repositories/{workspace}/{repo_slug}/pullrequests/{pull_request_id}",
+      "requiredParameters": [
+        "pull_request_id",
+        "repo_slug",
+        "workspace"
+      ],
+      "responses": [
+        "200",
+        "401",
+        "404"
+      ],
+      "successResponses": [
+        "200"
+      ],
+      "summary": "Get a pull request",
+      "workflow": "review"
+    },
+    {
+      "errorResponses": [],
+      "localOperation": "get_pull_request_diff",
+      "mcpTool": "bitbucket_get_pull_request_diff",
+      "method": "GET",
+      "operationId": null,
+      "parameters": [
+        {
+          "in": "path",
+          "name": "pull_request_id",
+          "required": true,
+          "schemaRef": null,
+          "type": "integer"
+        },
+        {
+          "in": "path",
+          "name": "repo_slug",
+          "required": true,
+          "schemaRef": null,
+          "type": "string"
+        },
+        {
+          "in": "path",
+          "name": "workspace",
+          "required": true,
+          "schemaRef": null,
+          "type": "string"
+        }
+      ],
+      "path": "/repositories/{workspace}/{repo_slug}/pullrequests/{pull_request_id}/diff",
+      "requiredParameters": [
+        "pull_request_id",
+        "repo_slug",
+        "workspace"
+      ],
+      "responses": [
+        "302"
+      ],
+      "successResponses": [],
+      "summary": "List changes in a pull request",
+      "workflow": "review"
+    },
+    {
+      "errorResponses": [
+        "403",
+        "404"
+      ],
+      "localOperation": "list_pull_request_comments",
+      "mcpTool": "bitbucket_list_pull_request_comments",
+      "method": "GET",
+      "operationId": null,
+      "parameters": [
+        {
+          "in": "path",
+          "name": "pull_request_id",
+          "required": true,
+          "schemaRef": null,
+          "type": "integer"
+        },
+        {
+          "in": "path",
+          "name": "repo_slug",
+          "required": true,
+          "schemaRef": null,
+          "type": "string"
+        },
+        {
+          "in": "path",
+          "name": "workspace",
+          "required": true,
+          "schemaRef": null,
+          "type": "string"
+        }
+      ],
+      "path": "/repositories/{workspace}/{repo_slug}/pullrequests/{pull_request_id}/comments",
+      "requiredParameters": [
+        "pull_request_id",
+        "repo_slug",
+        "workspace"
+      ],
+      "responses": [
+        "200",
+        "403",
+        "404"
+      ],
+      "successResponses": [
+        "200"
+      ],
+      "summary": "List comments on a pull request",
+      "workflow": "review"
+    },
+    {
+      "errorResponses": [
+        "403",
+        "404"
+      ],
+      "localOperation": "create_pull_request_comment",
+      "mcpTool": "bitbucket_create_pull_request_comment",
+      "method": "POST",
+      "operationId": null,
+      "parameters": [
+        {
+          "in": "path",
+          "name": "pull_request_id",
+          "required": true,
+          "schemaRef": null,
+          "type": "integer"
+        },
+        {
+          "in": "path",
+          "name": "repo_slug",
+          "required": true,
+          "schemaRef": null,
+          "type": "string"
+        },
+        {
+          "in": "path",
+          "name": "workspace",
+          "required": true,
+          "schemaRef": null,
+          "type": "string"
+        },
+        {
+          "in": "body",
+          "name": "_body",
+          "required": true,
+          "schemaRef": "#/definitions/pullrequest_comment",
+          "type": null
+        }
+      ],
+      "path": "/repositories/{workspace}/{repo_slug}/pullrequests/{pull_request_id}/comments",
+      "requiredParameters": [
+        "_body",
+        "pull_request_id",
+        "repo_slug",
+        "workspace"
+      ],
+      "responses": [
+        "201",
+        "403",
+        "404"
+      ],
+      "successResponses": [
+        "201"
+      ],
+      "summary": "Create a comment on a pull request",
+      "workflow": "review"
+    },
+    {
+      "errorResponses": [
+        "401",
+        "404"
+      ],
+      "localOperation": "approve_pull_request",
+      "mcpTool": "bitbucket_approve_pull_request",
+      "method": "POST",
+      "operationId": null,
+      "parameters": [
+        {
+          "in": "path",
+          "name": "pull_request_id",
+          "required": true,
+          "schemaRef": null,
+          "type": "integer"
+        },
+        {
+          "in": "path",
+          "name": "repo_slug",
+          "required": true,
+          "schemaRef": null,
+          "type": "string"
+        },
+        {
+          "in": "path",
+          "name": "workspace",
+          "required": true,
+          "schemaRef": null,
+          "type": "string"
+        }
+      ],
+      "path": "/repositories/{workspace}/{repo_slug}/pullrequests/{pull_request_id}/approve",
+      "requiredParameters": [
+        "pull_request_id",
+        "repo_slug",
+        "workspace"
+      ],
+      "responses": [
+        "200",
+        "401",
+        "404"
+      ],
+      "successResponses": [
+        "200"
+      ],
+      "summary": "Approve a pull request",
+      "workflow": "review"
+    },
+    {
+      "errorResponses": [
+        "400",
+        "401",
+        "404"
+      ],
+      "localOperation": "request_changes",
+      "mcpTool": "bitbucket_request_changes",
+      "method": "POST",
+      "operationId": null,
+      "parameters": [
+        {
+          "in": "path",
+          "name": "pull_request_id",
+          "required": true,
+          "schemaRef": null,
+          "type": "integer"
+        },
+        {
+          "in": "path",
+          "name": "repo_slug",
+          "required": true,
+          "schemaRef": null,
+          "type": "string"
+        },
+        {
+          "in": "path",
+          "name": "workspace",
+          "required": true,
+          "schemaRef": null,
+          "type": "string"
+        }
+      ],
+      "path": "/repositories/{workspace}/{repo_slug}/pullrequests/{pull_request_id}/request-changes",
+      "requiredParameters": [
+        "pull_request_id",
+        "repo_slug",
+        "workspace"
+      ],
+      "responses": [
+        "200",
+        "400",
+        "401",
+        "404"
+      ],
+      "successResponses": [
+        "200"
+      ],
+      "summary": "Request changes for a pull request",
+      "workflow": "review"
+    },
+    {
+      "errorResponses": [
+        "409",
+        "555"
+      ],
+      "localOperation": "merge_pull_request",
+      "mcpTool": "bitbucket_merge_pull_request",
+      "method": "POST",
+      "operationId": null,
+      "parameters": [
+        {
+          "in": "path",
+          "name": "pull_request_id",
+          "required": true,
+          "schemaRef": null,
+          "type": "integer"
+        },
+        {
+          "in": "path",
+          "name": "repo_slug",
+          "required": true,
+          "schemaRef": null,
+          "type": "string"
+        },
+        {
+          "in": "path",
+          "name": "workspace",
+          "required": true,
+          "schemaRef": null,
+          "type": "string"
+        },
+        {
+          "in": "body",
+          "name": "_body",
+          "required": false,
+          "schemaRef": "#/definitions/pullrequest_merge_parameters",
+          "type": null
+        },
+        {
+          "in": "query",
+          "name": "async",
+          "required": false,
+          "schemaRef": null,
+          "type": "boolean"
+        }
+      ],
+      "path": "/repositories/{workspace}/{repo_slug}/pullrequests/{pull_request_id}/merge",
+      "requiredParameters": [
+        "pull_request_id",
+        "repo_slug",
+        "workspace"
+      ],
+      "responses": [
+        "200",
+        "202",
+        "409",
+        "555"
+      ],
+      "successResponses": [
+        "200",
+        "202"
+      ],
+      "summary": "Merge a pull request",
+      "workflow": "review"
+    },
+    {
+      "errorResponses": [],
+      "localOperation": "list_pipelines",
+      "mcpTool": "bitbucket_list_pipelines",
+      "method": "GET",
+      "operationId": "getPipelinesForRepository",
+      "parameters": [
+        {
+          "in": "path",
+          "name": "workspace",
+          "required": true,
+          "schemaRef": null,
+          "type": "string"
+        },
+        {
+          "in": "path",
+          "name": "repo_slug",
+          "required": true,
+          "schemaRef": null,
+          "type": "string"
+        },
+        {
+          "in": "query",
+          "name": "creator.uuid",
+          "required": false,
+          "schemaRef": null,
+          "type": "string"
+        },
+        {
+          "in": "query",
+          "name": "target.ref_type",
+          "required": false,
+          "schemaRef": null,
+          "type": "string"
+        },
+        {
+          "in": "query",
+          "name": "target.ref_name",
+          "required": false,
+          "schemaRef": null,
+          "type": "string"
+        },
+        {
+          "in": "query",
+          "name": "target.branch",
+          "required": false,
+          "schemaRef": null,
+          "type": "string"
+        },
+        {
+          "in": "query",
+          "name": "target.commit.hash",
+          "required": false,
+          "schemaRef": null,
+          "type": "string"
+        },
+        {
+          "in": "query",
+          "name": "target.selector.pattern",
+          "required": false,
+          "schemaRef": null,
+          "type": "string"
+        },
+        {
+          "in": "query",
+          "name": "target.selector.type",
+          "required": false,
+          "schemaRef": null,
+          "type": "string"
+        },
+        {
+          "in": "query",
+          "name": "created_on",
+          "required": false,
+          "schemaRef": null,
+          "type": "string"
+        },
+        {
+          "in": "query",
+          "name": "trigger_type",
+          "required": false,
+          "schemaRef": null,
+          "type": "string"
+        },
+        {
+          "in": "query",
+          "name": "status",
+          "required": false,
+          "schemaRef": null,
+          "type": "string"
+        },
+        {
+          "in": "query",
+          "name": "sort",
+          "required": false,
+          "schemaRef": null,
+          "type": "string"
+        },
+        {
+          "in": "query",
+          "name": "page",
+          "required": false,
+          "schemaRef": null,
+          "type": "integer"
+        },
+        {
+          "in": "query",
+          "name": "pagelen",
+          "required": false,
+          "schemaRef": null,
+          "type": "integer"
+        }
+      ],
+      "path": "/repositories/{workspace}/{repo_slug}/pipelines",
+      "requiredParameters": [
+        "repo_slug",
+        "workspace"
+      ],
+      "responses": [
+        "200"
+      ],
+      "successResponses": [
+        "200"
+      ],
+      "summary": "List pipelines",
+      "workflow": "ci"
+    },
+    {
+      "errorResponses": [
+        "400",
+        "404"
+      ],
+      "localOperation": "create_pipeline",
+      "mcpTool": "bitbucket_create_pipeline",
+      "method": "POST",
+      "operationId": "createPipelineForRepository",
+      "parameters": [
+        {
+          "in": "path",
+          "name": "workspace",
+          "required": true,
+          "schemaRef": null,
+          "type": "string"
+        },
+        {
+          "in": "path",
+          "name": "repo_slug",
+          "required": true,
+          "schemaRef": null,
+          "type": "string"
+        },
+        {
+          "in": "body",
+          "name": "_body",
+          "required": true,
+          "schemaRef": "#/definitions/pipeline",
+          "type": null
+        }
+      ],
+      "path": "/repositories/{workspace}/{repo_slug}/pipelines",
+      "requiredParameters": [
+        "_body",
+        "repo_slug",
+        "workspace"
+      ],
+      "responses": [
+        "201",
+        "400",
+        "404"
+      ],
+      "successResponses": [
+        "201"
+      ],
+      "summary": "Run a pipeline",
+      "workflow": "ci"
+    },
+    {
+      "errorResponses": [
+        "404"
+      ],
+      "localOperation": "get_pipeline",
+      "mcpTool": "bitbucket_get_pipeline",
+      "method": "GET",
+      "operationId": "getPipelineForRepository",
+      "parameters": [
+        {
+          "in": "path",
+          "name": "workspace",
+          "required": true,
+          "schemaRef": null,
+          "type": "string"
+        },
+        {
+          "in": "path",
+          "name": "repo_slug",
+          "required": true,
+          "schemaRef": null,
+          "type": "string"
+        },
+        {
+          "in": "path",
+          "name": "pipeline_uuid",
+          "required": true,
+          "schemaRef": null,
+          "type": "string"
+        }
+      ],
+      "path": "/repositories/{workspace}/{repo_slug}/pipelines/{pipeline_uuid}",
+      "requiredParameters": [
+        "pipeline_uuid",
+        "repo_slug",
+        "workspace"
+      ],
+      "responses": [
+        "200",
+        "404"
+      ],
+      "successResponses": [
+        "200"
+      ],
+      "summary": "Get a pipeline",
+      "workflow": "ci"
+    },
+    {
+      "errorResponses": [],
+      "localOperation": "list_pipeline_steps",
+      "mcpTool": "bitbucket_list_pipeline_steps",
+      "method": "GET",
+      "operationId": "getPipelineStepsForRepository",
+      "parameters": [
+        {
+          "in": "path",
+          "name": "workspace",
+          "required": true,
+          "schemaRef": null,
+          "type": "string"
+        },
+        {
+          "in": "path",
+          "name": "repo_slug",
+          "required": true,
+          "schemaRef": null,
+          "type": "string"
+        },
+        {
+          "in": "path",
+          "name": "pipeline_uuid",
+          "required": true,
+          "schemaRef": null,
+          "type": "string"
+        }
+      ],
+      "path": "/repositories/{workspace}/{repo_slug}/pipelines/{pipeline_uuid}/steps",
+      "requiredParameters": [
+        "pipeline_uuid",
+        "repo_slug",
+        "workspace"
+      ],
+      "responses": [
+        "200"
+      ],
+      "successResponses": [
+        "200"
+      ],
+      "summary": "List steps for a pipeline",
+      "workflow": "ci"
+    },
+    {
+      "errorResponses": [
+        "404",
+        "416"
+      ],
+      "localOperation": "get_pipeline_step_log",
+      "mcpTool": "bitbucket_get_pipeline_step_log",
+      "method": "GET",
+      "operationId": "getPipelineStepLogForRepository",
+      "parameters": [
+        {
+          "in": "path",
+          "name": "workspace",
+          "required": true,
+          "schemaRef": null,
+          "type": "string"
+        },
+        {
+          "in": "path",
+          "name": "repo_slug",
+          "required": true,
+          "schemaRef": null,
+          "type": "string"
+        },
+        {
+          "in": "path",
+          "name": "pipeline_uuid",
+          "required": true,
+          "schemaRef": null,
+          "type": "string"
+        },
+        {
+          "in": "path",
+          "name": "step_uuid",
+          "required": true,
+          "schemaRef": null,
+          "type": "string"
+        }
+      ],
+      "path": "/repositories/{workspace}/{repo_slug}/pipelines/{pipeline_uuid}/steps/{step_uuid}/log",
+      "requiredParameters": [
+        "pipeline_uuid",
+        "repo_slug",
+        "step_uuid",
+        "workspace"
+      ],
+      "responses": [
+        "200",
+        "304",
+        "307",
+        "404",
+        "416"
+      ],
+      "successResponses": [
+        "200"
+      ],
+      "summary": "Get log file for a step",
+      "workflow": "ci"
+    },
+    {
+      "errorResponses": [
+        "401",
+        "404"
+      ],
+      "localOperation": "list_commit_statuses",
+      "mcpTool": "bitbucket_list_commit_statuses",
+      "method": "GET",
+      "operationId": null,
+      "parameters": [
+        {
+          "in": "path",
+          "name": "commit",
+          "required": true,
+          "schemaRef": null,
+          "type": "string"
+        },
+        {
+          "in": "path",
+          "name": "repo_slug",
+          "required": true,
+          "schemaRef": null,
+          "type": "string"
+        },
+        {
+          "in": "path",
+          "name": "workspace",
+          "required": true,
+          "schemaRef": null,
+          "type": "string"
+        },
+        {
+          "in": "query",
+          "name": "refname",
+          "required": false,
+          "schemaRef": null,
+          "type": "string"
+        },
+        {
+          "in": "query",
+          "name": "q",
+          "required": false,
+          "schemaRef": null,
+          "type": "string"
+        },
+        {
+          "in": "query",
+          "name": "sort",
+          "required": false,
+          "schemaRef": null,
+          "type": "string"
+        }
+      ],
+      "path": "/repositories/{workspace}/{repo_slug}/commit/{commit}/statuses",
+      "requiredParameters": [
+        "commit",
+        "repo_slug",
+        "workspace"
+      ],
+      "responses": [
+        "200",
+        "401",
+        "404"
+      ],
+      "successResponses": [
+        "200"
+      ],
+      "summary": "List commit statuses for a commit",
+      "workflow": "ci"
+    },
+    {
+      "errorResponses": [
+        "401",
+        "404"
+      ],
+      "localOperation": "create_commit_status",
+      "mcpTool": "bitbucket_create_commit_status",
+      "method": "POST",
+      "operationId": null,
+      "parameters": [
+        {
+          "in": "path",
+          "name": "commit",
+          "required": true,
+          "schemaRef": null,
+          "type": "string"
+        },
+        {
+          "in": "path",
+          "name": "repo_slug",
+          "required": true,
+          "schemaRef": null,
+          "type": "string"
+        },
+        {
+          "in": "path",
+          "name": "workspace",
+          "required": true,
+          "schemaRef": null,
+          "type": "string"
+        },
+        {
+          "in": "body",
+          "name": "_body",
+          "required": false,
+          "schemaRef": "#/definitions/commitstatus",
+          "type": null
+        }
+      ],
+      "path": "/repositories/{workspace}/{repo_slug}/commit/{commit}/statuses/build",
+      "requiredParameters": [
+        "commit",
+        "repo_slug",
+        "workspace"
+      ],
+      "responses": [
+        "201",
+        "401",
+        "404"
+      ],
+      "successResponses": [
+        "201"
+      ],
+      "summary": "Create a build status for a commit",
+      "workflow": "ci"
+    }
+  ],
+  "provider": "Bitbucket Cloud",
+  "sourceSha256": "dc11be99fe57eb991194de80cdfe75e425cd0f590e6cf83e9dc3d2a22d4943de"
+}

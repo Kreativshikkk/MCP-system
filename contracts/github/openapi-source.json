@@ -1,0 +1,11 @@
+{
+  "service": "github",
+  "source_repository": "https://github.com/github/rest-api-description",
+  "source_revision": "5e28810649ba41b5483753ba74f976f83856a504",
+  "source_document": "descriptions/api.github.com/api.github.com.2026-03-10.json",
+  "source_document_sha256": "d341cfdb1deb61cc942f8e1e77d9dcc4608df90752150a8337aedd8320d102b4",
+  "api_version": "2026-03-10",
+  "openapi_info_version": "1.1.4",
+  "license": "MIT",
+  "selection": "contracts/github/operations.json"
+}
