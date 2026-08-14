@@ -58,7 +58,9 @@ class BitbucketPluginTests(unittest.TestCase):
             engineer = MCPDispatcher(system, environment.id, actor="engineer")
             qa = MCPDispatcher(system, environment.id, actor="qa")
             lead = MCPDispatcher(system, environment.id, actor="lead")
-            self.assertEqual(len(engineer.list_tools()), 36)
+            # 36 selected operations minus create_commit_status,
+            # which is admin-only so an agent cannot forge a green build
+            self.assertEqual(len(engineer.list_tools()), 35)
 
             def call(dispatcher: MCPDispatcher, name: str, arguments: dict[str, object]) -> object:
                 response = dispatcher.call_tool(name, arguments)

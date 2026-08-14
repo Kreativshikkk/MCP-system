@@ -74,14 +74,15 @@ class PostgresServiceStorage:
         self,
         locator: str,
         plugin: ServicePlugin,
-        seed: Mapping[str, Any],
+        seed: Mapping[str, Any] | None,
     ) -> None:
         self._validate_locator(locator)
         migrations = PluginRegistry.validate_migrations(plugin, self.kind)
         with psycopg.connect(self.dsn, row_factory=dict_row) as connection:
             self._create_empty_schema(connection, locator, migrations)
             self._set_search_path(connection, locator)
-            plugin.seed(PostgresSession(connection), seed)
+            if seed is not None:
+                plugin.seed(PostgresSession(connection), seed)
 
     @contextmanager
     def open(self, locator: str) -> Iterator[RelationalSession]:
@@ -137,6 +138,45 @@ class PostgresServiceStorage:
                 rows = connection.execute(sql.SQL("SELECT * FROM {}.{}").format(sql.Identifier(locator), sql.Identifier(table))).fetchall()
                 result[table] = {"columns": columns, "primaryKey": primary_key, "rows": [dict(row) for row in rows]}
             return result
+
+    def load(self, locator: str, dump: Mapping[str, Any]) -> None:
+        """Replace every row with the contents of an `inspect()` dump."""
+        self._validate_locator(locator)
+        with psycopg.connect(self.dsn, row_factory=dict_row) as connection:
+            self._require_schema(connection, locator)
+            connection.execute("SET CONSTRAINTS ALL DEFERRED")
+            tables = self._ordered_tables(connection, locator)
+            for table in reversed(tables):  # children first
+                connection.execute(
+                    sql.SQL("DELETE FROM {}.{}").format(
+                        sql.Identifier(locator), sql.Identifier(table)
+                    )
+                )
+            for table in tables:
+                content = dump.get(table)
+                if not content or not content["rows"]:
+                    continue
+                columns = list(content["columns"])
+                statement = sql.SQL("INSERT INTO {}.{} ({}) VALUES ({})").format(
+                    sql.Identifier(locator),
+                    sql.Identifier(table),
+                    sql.SQL(", ").join(sql.Identifier(name) for name in columns),
+                    sql.SQL(", ").join(sql.Placeholder() for _ in columns),
+                )
+                connection.cursor().executemany(
+                    statement,
+                    [tuple(row[name] for name in columns) for row in content["rows"]],
+                )
+            self._reset_sequences(connection, locator, tables)
+
+    def delete(self, locator: str) -> None:
+        self._validate_locator(locator)
+        with psycopg.connect(self.dsn, row_factory=dict_row) as connection:
+            connection.execute(
+                sql.SQL("DROP SCHEMA IF EXISTS {} CASCADE").format(
+                    sql.Identifier(locator)
+                )
+            )
 
     def _create_empty_schema(
         self,

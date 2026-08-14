@@ -11,6 +11,10 @@ from .errors import ConfigurationError
 from .plugins import PluginRegistry, RelationalSession, ServicePlugin
 
 
+def _quote(identifier: str) -> str:
+    return '"' + identifier.replace('"', '""') + '"'
+
+
 class ServiceStorageBackend(Protocol):
     @property
     def kind(self) -> str: ...
@@ -25,8 +29,10 @@ class ServiceStorageBackend(Protocol):
         self,
         locator: str,
         plugin: ServicePlugin,
-        seed: Mapping[str, Any],
-    ) -> None: ...
+        seed: Mapping[str, Any] | None,
+    ) -> None:
+        """Create the schema. `seed=None` means schema only, no bootstrap."""
+        ...
 
     def open(self, locator: str) -> ContextManager[RelationalSession]: ...
 
@@ -38,6 +44,14 @@ class ServiceStorageBackend(Protocol):
     ) -> None: ...
 
     def inspect(self, locator: str) -> Mapping[str, Any]: ...
+
+    def load(self, locator: str, dump: Mapping[str, Any]) -> None:
+        """Replace every row with the contents of an `inspect()` dump."""
+        ...
+
+    def delete(self, locator: str) -> None:
+        """Drop the instance's storage. Missing storage is not an error."""
+        ...
 
 
 class SQLiteServiceStorage:
@@ -69,7 +83,7 @@ class SQLiteServiceStorage:
         self,
         locator: str,
         plugin: ServicePlugin,
-        seed: Mapping[str, Any],
+        seed: Mapping[str, Any] | None,
     ) -> None:
         path = self._resolve(locator)
         path.parent.mkdir(parents=True, exist_ok=True)
@@ -94,7 +108,8 @@ class SQLiteServiceStorage:
                     "INSERT INTO _mcp_plugin_migrations(version) VALUES (?)",
                     (migration.version,),
                 )
-            plugin.seed(connection, seed)
+            if seed is not None:
+                plugin.seed(connection, seed)
             connection.commit()
         except Exception:
             connection.rollback()
@@ -165,6 +180,46 @@ class SQLiteServiceStorage:
             return result
         finally:
             connection.close()
+
+    def load(self, locator: str, dump: Mapping[str, Any]) -> None:
+        """Replace every row with the contents of an `inspect()` dump.
+
+        Foreign keys are switched off for the duration: a logical dump has no
+        universally safe insertion order, and the source database already
+        enforced referential integrity.
+        """
+        path = self._resolve(locator)
+        connection = sqlite3.connect(path)
+        try:
+            connection.execute("PRAGMA foreign_keys = OFF")
+            connection.execute("BEGIN IMMEDIATE")
+            for table in dump:
+                connection.execute(f"DELETE FROM {_quote(table)}")
+            for table, content in dump.items():
+                rows = content["rows"]
+                if not rows:
+                    continue
+                columns = content["columns"]
+                placeholders = ", ".join("?" for _ in columns)
+                column_list = ", ".join(_quote(name) for name in columns)
+                connection.executemany(
+                    f"INSERT INTO {_quote(table)} ({column_list})"
+                    f" VALUES ({placeholders})",
+                    [tuple(row[name] for name in columns) for row in rows],
+                )
+            connection.commit()
+        except Exception:
+            connection.rollback()
+            raise
+        finally:
+            connection.close()
+
+    def delete(self, locator: str) -> None:
+        path = self._resolve(locator)
+        for suffix in ("", "-wal", "-shm"):
+            candidate = Path(str(path) + suffix)
+            if candidate.exists():
+                candidate.unlink()
 
     def _resolve(self, locator: str) -> Path:
         path = (self.data_root / locator).resolve()

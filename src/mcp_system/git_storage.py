@@ -195,6 +195,118 @@ class BareGitRepository:
             )
         return result.stdout
 
+    def read_tree_contents(self, ref: str) -> dict[str, bytes]:
+        """The whole tree at a ref as {path: bytes}.
+
+        A caller that Merkle-hashes a tree needs content, not entry metadata,
+        and one `git show` per blob costs a process per file.
+        """
+        self.initialize()
+        entries = [e for e in self.list_tree(ref, recursive=True)
+                   if e["type"] == "blob"]
+        return {
+            entry["path"]: self._read_object(entry["id"], "blob")
+            for entry in entries
+        }
+
+    def log(
+        self, *, to_ref: str, from_ref: str | None = None, merges_only: bool = False
+    ) -> list[str]:
+        """Commit shas reachable from to_ref, excluding from_ref, newest first."""
+        self.initialize()
+        arguments = ["rev-list", "--first-parent"]
+        if merges_only:
+            arguments.append("--merges")
+        arguments.append(f"{from_ref}..{to_ref}" if from_ref else to_ref)
+        return [line for line in self._run(*arguments).splitlines() if line]
+
+    def update_tag(self, name: str, sha: str) -> None:
+        """Write refs/tags/<name>. A tag that is only a SQL row is invisible
+        to every git-level read, including the snapshot exporter."""
+        self.require_object(sha, "commit")
+        self._run("update-ref", f"refs/tags/{name}", sha)
+
+    def resolve_tag(self, name: str) -> str | None:
+        result = self._run_process(
+            "rev-parse", "--verify", f"refs/tags/{name}", check=False
+        )
+        if result.returncode != 0:
+            return None
+        return result.stdout.strip() or None
+
+    def export_objects(self) -> list[tuple[str, str, bytes]]:
+        """Every object in the repository as (sha, type, content), sorted."""
+        self.initialize()
+        listing = self._run("cat-file", "--batch-all-objects", "--batch-check")
+        objects: list[tuple[str, str, bytes]] = []
+        for line in sorted(listing.splitlines()):
+            if not line.strip():
+                continue
+            sha, object_type, _ = line.split(" ", 2)
+            objects.append((sha, object_type, self._read_object(sha, object_type)))
+        return objects
+
+    def import_objects(self, objects: Sequence[tuple[str, str, bytes]]) -> None:
+        """Write raw objects back. Content-addressed, so order does not matter."""
+        self.initialize()
+        environment = os.environ.copy()
+        environment["GIT_DIR"] = str(self.path)
+        for sha, object_type, content in objects:
+            result = subprocess.run(
+                ("git", "hash-object", "-t", object_type, "-w", "--stdin",
+                 "--literally"),
+                input=content, stdout=subprocess.PIPE, stderr=subprocess.PIPE,
+                env=environment, check=False,
+            )
+            if result.returncode != 0:
+                raise GitStorageError(
+                    result.stderr.decode("utf-8", errors="replace").strip()
+                    or "Git object import failed"
+                )
+            written = result.stdout.decode().strip()
+            if written != sha:
+                raise GitStorageError(
+                    f"imported object hashed to {written}, expected {sha}"
+                )
+
+    def resolve_ref(self, name: str) -> str | None:
+        """Full ref name (refs/heads/x, refs/tags/y) to sha, or None."""
+        result = self._run_process("rev-parse", "--verify", name, check=False)
+        if result.returncode != 0:
+            return None
+        return result.stdout.strip() or None
+
+    def delete_ref(self, name: str) -> None:
+        self._run("update-ref", "-d", name)
+
+    def all_refs(self) -> dict[str, str]:
+        self.initialize()
+        raw = self._run("for-each-ref", "--format=%(refname)%09%(objectname)")
+        refs: dict[str, str] = {}
+        for line in raw.splitlines():
+            name, _, sha = line.partition("\t")
+            if name:
+                refs[name] = sha
+        return refs
+
+    def set_ref(self, name: str, sha: str) -> None:
+        self.initialize()
+        self._run("update-ref", name, sha)
+
+    def _read_object(self, sha: str, object_type: str) -> bytes:
+        environment = os.environ.copy()
+        environment["GIT_DIR"] = str(self.path)
+        result = subprocess.run(
+            ("git", "cat-file", object_type, sha), stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE, env=environment, check=False,
+        )
+        if result.returncode != 0:
+            raise GitStorageError(
+                result.stderr.decode("utf-8", errors="replace").strip()
+                or "Git object read failed"
+            )
+        return result.stdout
+
     def list_tree(
         self, ref: str, *, path: str | None = None, recursive: bool = False
     ) -> list[dict[str, str]]:
@@ -340,14 +452,37 @@ class TransactionalBareGitRepository:
     def update_branch(
         self, name: str, sha: str, *, expected_old_sha: str | None = None
     ) -> None:
-        self.transaction.remember_ref(self.repository_id, name, self.repository)
+        self.transaction.remember_ref(
+            self.repository_id, f"refs/heads/{name}", self.repository
+        )
         self.repository.update_branch(
             name, sha, expected_old_sha=expected_old_sha
         )
 
     def delete_branch(self, name: str) -> None:
-        self.transaction.remember_ref(self.repository_id, name, self.repository)
+        self.transaction.remember_ref(
+            self.repository_id, f"refs/heads/{name}", self.repository
+        )
         self.repository.delete_branch(name)
+
+    def update_tag(self, name: str, sha: str) -> None:
+        self.transaction.remember_ref(
+            self.repository_id, f"refs/tags/{name}", self.repository
+        )
+        self.repository.update_tag(name, sha)
+
+    def resolve_tag(self, name: str) -> str | None:
+        return self.repository.resolve_tag(name)
+
+    def read_tree_contents(self, ref: str) -> dict[str, bytes]:
+        return self.repository.read_tree_contents(ref)
+
+    def log(
+        self, *, to_ref: str, from_ref: str | None = None, merges_only: bool = False
+    ) -> list[str]:
+        return self.repository.log(
+            to_ref=to_ref, from_ref=from_ref, merges_only=merges_only
+        )
 
 
 class GitServiceDataPlaneTransaction:
@@ -366,9 +501,10 @@ class GitServiceDataPlaneTransaction:
     def remember_ref(
         self, repository_id: int, name: str, repository: BareGitRepository
     ) -> None:
+        """`name` is a full ref (refs/heads/x, refs/tags/y)."""
         key = (repository_id, name)
         if key not in self.original_refs:
-            self.original_refs[key] = repository.resolve_branch(name)
+            self.original_refs[key] = repository.resolve_ref(name)
 
     def commit(self) -> None:
         self.original_refs.clear()
@@ -382,9 +518,9 @@ class GitServiceDataPlaneTransaction:
         ):
             repository = self.data_plane.repository(repository_id)
             if original_sha is None:
-                repository.delete_branch(name)
+                repository.delete_ref(name)
             else:
-                repository.update_branch(name, original_sha)
+                repository.set_ref(name, original_sha)
         self.original_refs.clear()
         self.finished = True
 
@@ -434,6 +570,20 @@ class GitDataPlaneStorage:
         if not path.is_dir():
             raise GitStorageError(f"Git data-plane does not exist: {locator}")
         return GitServiceDataPlane(path)
+
+    def delete(self, locator: str) -> None:
+        """Remove the data plane. A missing one is not an error."""
+        path = self._resolve(locator)
+        if path.is_dir():
+            shutil.rmtree(path)
+
+    def repository_ids(self, locator: str) -> list[int]:
+        root = self._resolve(locator)
+        if not root.is_dir():
+            return []
+        return sorted(
+            int(item.stem) for item in root.glob("*.git") if item.stem.isdigit()
+        )
 
     def inspect(self, locator: str) -> Mapping[str, object]:
         root = self._resolve(locator)

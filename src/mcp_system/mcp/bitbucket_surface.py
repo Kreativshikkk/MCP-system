@@ -48,7 +48,6 @@ def bitbucket_cloud_v2_surface() -> SurfaceSpec:
         ("list_pipeline_steps", {**REPO, "pipeline_uuid": S}, ("workspace", "repo_slug", "pipeline_uuid"), True),
         ("get_pipeline_step_log", {**REPO, "pipeline_uuid": S, "step_uuid": S}, ("workspace", "repo_slug", "pipeline_uuid", "step_uuid"), True),
         ("list_commit_statuses", {**REPO, "commit": S}, ("workspace", "repo_slug", "commit"), True),
-        ("create_commit_status", {**REPO, "commit": S, "key": S, "state": S, "name": S, "url": S, "description": S}, ("workspace", "repo_slug", "commit", "key", "state"), False),
     )
     return SurfaceSpec("bitbucket_cloud_v2", "bitbucket", tuple(_tool(*spec) for spec in specs))
 

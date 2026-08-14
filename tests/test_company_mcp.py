@@ -126,7 +126,9 @@ class CompanyMCPTests(unittest.TestCase):
             self.assertEqual(process.returncode, 0, process.stderr)
             responses = [json.loads(line) for line in process.stdout.splitlines()]
             tools = {tool["name"] for tool in responses[1]["result"]["tools"]}
-            self.assertEqual(len(tools), 222)
+            # 222 provider operations minus the two CI verdict writers
+            # (gitlab set_commit_status, bitbucket create_commit_status)
+            self.assertEqual(len(tools), 220)
             self.assertTrue(
                 {"github_get_authenticated_user", "gitlab_get_current_user", "jira_get_current_user", "bitbucket_get_current_user", "linear_get_viewer", "youtrack_get_current_user"}
                 <= tools

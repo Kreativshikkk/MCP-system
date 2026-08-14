@@ -31,9 +31,12 @@ organizations, repositories, real Git commits and branches, issues, labels,
 assignees, comments, pull requests, reviewers, reviews, inline review comments,
 merge transitions, Actions runs/jobs/logs, and releases.
 
-`gitlab_rest_v4` exposes 78 tools across repository, issue, merge request,
-review, CI/CD, and release workflows. `jira_rest_v3` exposes 22 tools covering
-projects, issues, comments, transitions, issue links, boards, and sprints.
+`gitlab_rest_v4` exposes 77 agent-facing tools across repository, issue, merge
+request, review, CI/CD, and release workflows. `jira_rest_v3` exposes 22 tools
+covering projects, issues, comments, transitions, issue links, boards, and
+sprints.
+The GitLab CI-verdict writer and Bitbucket commit-status writer are admin-only,
+leaving 220 agent-facing tools from 222 selected provider operations.
 
 ## Running over stdio
 
@@ -55,7 +58,7 @@ JSON-RPC messages.
 ## Multi-service company launcher
 
 Materialize one environment containing GitHub, GitLab, Bitbucket, Jira, Linear,
-and YouTrack (222 tools total):
+and YouTrack (220 agent-facing tools total):
 
 ```bash
 PYTHONPATH=src .venv/bin/python scripts/materialize_company.py

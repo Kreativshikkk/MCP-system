@@ -1,0 +1,103 @@
+# Environment template for the AABench harness.
+#
+# Two services, not six: the agent's context is a budget, and every extra
+# surface is dozens of tool definitions it must read past. GitLab carries the
+# repository, merge requests and pipelines; Jira carries the tickets — so the
+# agent has to connect a ticket to a branch itself, which is the discovery
+# behaviour the benchmark is meant to measure.
+#
+# The repository is created empty. The harness seeds the tree through the
+# admin plane, because ground truth must be computed from a tree the harness
+# itself wrote.
+
+[template]
+id = "aabench_gitlab_jira"
+name = "AABench harness environment (GitLab + Jira)"
+version = "1.0.0"
+mcp_surfaces = ["gitlab_rest_v4", "jira_rest_v3"]
+
+[[services]]
+instance_id = "gitlab"
+plugin = "gitlab"
+version = "0.1.0"
+
+[services.seed]
+created_at = "2026-01-01T00:00:00+00:00"
+
+[services.seed.group]
+path = "acme"
+name = "Acme Software"
+visibility = "private"
+
+[[services.seed.users]]
+username = "director"
+name = "Director"
+email = "director@acme.local"
+admin = true
+access_level = 50
+
+[[services.seed.users]]
+username = "lead"
+name = "Team Lead"
+email = "lead@acme.local"
+access_level = 50
+
+[[services.seed.users]]
+username = "engineer"
+name = "Software Engineer"
+email = "engineer@acme.local"
+access_level = 30
+
+[[services.seed.users]]
+username = "qa"
+name = "QA Engineer"
+email = "qa@acme.local"
+access_level = 30
+
+[[services.seed.projects]]
+path = "product"
+name = "Product"
+description = "Primary product project"
+visibility = "private"
+default_branch = "main"
+
+[[services]]
+instance_id = "jira"
+plugin = "jira"
+version = "0.1.0"
+
+[services.seed]
+created_at = "2026-01-01T00:00:00+00:00"
+
+[[services.seed.users]]
+account_id = "director"
+display_name = "Director"
+email = "director@acme.local"
+admin = true
+role = "Administrator"
+
+[[services.seed.users]]
+account_id = "lead"
+display_name = "Team Lead"
+email = "lead@acme.local"
+role = "Administrator"
+
+[[services.seed.users]]
+account_id = "engineer"
+display_name = "Software Engineer"
+email = "engineer@acme.local"
+role = "Member"
+
+[[services.seed.users]]
+account_id = "qa"
+display_name = "QA Engineer"
+email = "qa@acme.local"
+role = "Member"
+
+[[services.seed.projects]]
+key = "PROD"
+name = "Product"
+description = "Primary product delivery project"
+lead = "lead"
+board_name = "Product delivery"
+board_type = "scrum"

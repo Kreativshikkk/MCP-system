@@ -28,6 +28,13 @@ class EnvironmentNotReadyError(MCPSystemError):
     """The environment exists but cannot serve requests."""
 
 
+class EnvironmentFrozenError(MCPSystemError):
+    """A write was attempted while the environment was frozen for snapshot."""
+
+    status_code = 409
+    error = "environment_frozen"
+
+
 class PluginNotFoundError(MCPSystemError):
     """No plugin with the requested id and version is registered."""
 

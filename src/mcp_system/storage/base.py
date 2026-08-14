@@ -90,7 +90,9 @@ class ControlPlaneStore(Protocol):
 
     def list_templates(self) -> Sequence[Template]: ...
 
-    def begin_operation(self, operation: OperationRecord) -> None: ...
+    def begin_operation(self, operation: OperationRecord) -> int:
+        """Insert the record; returns its monotonic per-environment seq."""
+        ...
 
     def complete_operation(
         self,
@@ -108,6 +110,18 @@ class ControlPlaneStore(Protocol):
         *,
         service_instance_id: str | None = None,
         limit: int = 100,
+        since_seq: int = 0,
+        actor: str | None = None,
     ) -> Sequence[OperationRecord]: ...
 
+    def operation_watermark(self, environment_id: str) -> int:
+        """Highest assigned seq for the environment (0 when it has none)."""
+        ...
+
     def get_operation_cursor(self, environment_id: str) -> tuple[int, str | None]: ...
+
+    def set_environment_frozen(
+        self, environment_id: str, frozen: bool, at: datetime
+    ) -> None: ...
+
+    def delete_environment_record(self, environment_id: str) -> None: ...

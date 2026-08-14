@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import base64
 from contextlib import contextmanager
 from datetime import datetime
 import json
@@ -11,6 +12,7 @@ from typing import Any, Iterator, Mapping
 
 from .errors import (
     ConfigurationError,
+    EnvironmentFrozenError,
     EnvironmentNotFoundError,
     EnvironmentNotReadyError,
     ServiceNotFoundError,
@@ -112,8 +114,16 @@ class MCPSystem:
             operation_ids=operation_ids,
         )
 
-    def create_environment(self, spec: EnvironmentSpec) -> Environment:
-        resolved_plugins = self._validate_and_resolve(spec)
+    def create_environment(
+        self, spec: EnvironmentSpec, *, bootstrap: bool = True
+    ) -> Environment:
+        """Provision an environment.
+
+        `bootstrap=False` builds the schema without running each plugin's seed:
+        used by portable import, which is about to replace every row anyway and
+        has no bootstrap document to validate.
+        """
+        resolved_plugins = self._validate_and_resolve(spec, bootstrap=bootstrap)
         environment_id = self.ids.new_environment_id()
         service_paths = {
             service.instance_id: self.service_storage.build_locator(
@@ -131,7 +141,8 @@ class MCPSystem:
             for service, plugin in zip(spec.services, resolved_plugins, strict=True):
                 current_service = service
                 self.service_storage.provision(
-                    service_paths[service.instance_id], plugin, service.seed
+                    service_paths[service.instance_id], plugin,
+                    service.seed if bootstrap else None,
                 )
                 if self._has_git_data_plane(plugin):
                     self.git_storage.provision(
@@ -344,8 +355,14 @@ class MCPSystem:
         *,
         service_instance_id: str | None = None,
         limit: int = 100,
+        since_seq: int = 0,
+        actor: str | None = None,
     ) -> tuple[OperationRecord, ...]:
-        """Read the durable provider-operation timeline for an environment."""
+        """Read the durable provider-operation timeline for an environment.
+
+        `since_seq` and `actor` are what make this a usable mutation log: a
+        caller can ask "what has this one agent done since I last looked".
+        """
         self.require_environment(environment_id)
         if not 1 <= limit <= 1000:
             raise ConfigurationError("operation list limit must be between 1 and 1000")
@@ -363,8 +380,77 @@ class MCPSystem:
                 environment_id,
                 service_instance_id=service_instance_id,
                 limit=limit,
+                since_seq=since_seq,
+                actor=actor,
             )
         )
+
+    def operation_watermark(self, environment_id: str) -> int:
+        """Highest operation seq in this environment; 0 when it has none."""
+        self.require_environment(environment_id)
+        return self.control_plane.operation_watermark(environment_id)
+
+    def freeze_environment(self, environment_id: str) -> None:
+        """Refuse agent-plane writes so a snapshot cannot be torn.
+
+        The flag is persisted in the control plane, not held in memory: the
+        agents that must observe it run in their own MCP server processes, so
+        an in-process lock would not implement this at all.
+        """
+        with self._state_lock:
+            self.require_environment(environment_id)
+            self.control_plane.set_environment_frozen(
+                environment_id, True, self.clock.now()
+            )
+
+    def unfreeze_environment(self, environment_id: str) -> None:
+        with self._state_lock:
+            self.require_environment(environment_id)
+            self.control_plane.set_environment_frozen(
+                environment_id, False, self.clock.now()
+            )
+
+    def delete_environment(self, environment_id: str) -> None:
+        """Drop an environment and every byte it owns.
+
+        Required, not a nicety: a harness creates a scratch environment per
+        filtered candidate and per snapshot self-test, so a system that only
+        ever accumulates worlds fills the disk inside one run.
+        """
+        with self._state_lock:
+            environment = self.control_plane.get_environment(environment_id)
+            if environment is None:
+                raise EnvironmentNotFoundError(
+                    f"environment {environment_id!r} does not exist"
+                )
+            for service in self.control_plane.list_services(environment_id):
+                self.service_storage.delete(service.database_path)
+                git_locator = self.git_storage.build_locator(
+                    environment_id, service.instance_id
+                )
+                if self.git_storage.exists(git_locator):
+                    self.git_storage.delete(git_locator)
+            self.control_plane.delete_environment_record(environment_id)
+
+    def export_environment(self, environment_id: str) -> bytes:
+        """Canonical, byte-stable serialisation of one environment.
+
+        Unlike snapshot_environment (an on-disk clone whose bytes include
+        database pages and a wall-clock manifest), this satisfies
+        export(import(export(x))) == export(x), which is what a caller needs
+        if a world digest is going to mean anything.
+        """
+        from .portable import export_environment
+
+        with self._state_lock:
+            return export_environment(self, environment_id)
+
+    def import_environment(self, blob: bytes, *, name: str | None = None) -> Environment:
+        """Rebuild an environment from export_environment output."""
+        from .portable import import_environment
+
+        with self._state_lock:
+            return import_environment(self, blob, name=name)
 
     def snapshot_environment(
         self, environment_id: str, *, name: str | None = None
@@ -619,11 +705,20 @@ class MCPSystem:
         transport: str,
         operation: str,
         arguments: dict[str, object],
+        tool_call_id: str | None = None,
+        allow_frozen: bool = False,
     ) -> object:
+        """Run one provider operation, audited.
+
+        `allow_frozen` is the admin-plane escape hatch used while a snapshot is
+        being taken. The MCP dispatcher never passes it, so an agent has no way
+        to write to a frozen world.
+        """
         with self._state_lock:
             return self._invoke_service_operation(
                 environment_id, instance_id, actor=actor, transport=transport,
                 operation=operation, arguments=arguments,
+                tool_call_id=tool_call_id, allow_frozen=allow_frozen,
             )
 
     def _invoke_service_operation(
@@ -635,8 +730,16 @@ class MCPSystem:
         transport: str,
         operation: str,
         arguments: dict[str, object],
+        tool_call_id: str | None = None,
+        allow_frozen: bool = False,
     ) -> object:
         """Invoke and durably audit one transport-neutral provider operation."""
+        if not allow_frozen:
+            environment = self.require_environment(environment_id)
+            if environment.frozen:
+                raise EnvironmentFrozenError(
+                    f"environment {environment_id!r} is frozen for snapshot"
+                )
         service = self.control_plane.get_service(environment_id, instance_id)
         if service is None:
             raise ServiceNotFoundError(
@@ -656,6 +759,7 @@ class MCPSystem:
                 request=request,
                 status=OperationStatus.RUNNING,
                 started_at=self.clock.now(),
+                tool_call_id=tool_call_id,
             )
         )
         try:
@@ -770,7 +874,7 @@ class MCPSystem:
         )
 
     def _validate_and_resolve(
-        self, spec: EnvironmentSpec
+        self, spec: EnvironmentSpec, *, bootstrap: bool = True
     ) -> tuple[ServicePlugin, ...]:
         resolved: list[ServicePlugin] = []
         for service in spec.services:
@@ -783,7 +887,8 @@ class MCPSystem:
             plugin = self.registry.resolve(
                 service.plugin_id, service.plugin_version
             )
-            plugin.validate_bootstrap(service.seed)
+            if bootstrap:
+                plugin.validate_bootstrap(service.seed)
             resolved.append(plugin)
         return tuple(resolved)
 
@@ -794,9 +899,24 @@ class MCPSystem:
 
 def _json_copy(value: object, context: str) -> object:
     try:
-        return json.loads(json.dumps(value, sort_keys=True, separators=(",", ":")))
+        return json.loads(
+            json.dumps(
+                value, sort_keys=True, separators=(",", ":"), default=_json_default
+            )
+        )
     except (TypeError, ValueError) as exc:
         raise ConfigurationError(f"{context} is not JSON serializable") from exc
+
+
+def _json_default(value: object) -> object:
+    """Operations legitimately take file content as bytes (commits do).
+
+    The audit record has to survive that, so bytes are tagged rather than
+    guessed at as text — the log stays replayable and never invents an encoding.
+    """
+    if isinstance(value, (bytes, bytearray, memoryview)):
+        return {"__bytes__": base64.b64encode(bytes(value)).decode("ascii")}
+    raise TypeError(f"unserializable operation payload of type {type(value).__name__}")
 
 
 def _jsonable(value: Any) -> Any:

@@ -290,6 +290,8 @@ class BitbucketOperations:
     def create_commit_status(self, workspace: str, repo_slug: str, commit: str, *, key: str,
                              state: str, name: str | None = None, url: str | None = None,
                              description: str | None = None) -> dict[str, Any]:
+        """CI verdict writer; intentionally absent from public surfaces — an
+        agent that can post SUCCESSFUL can forge a green build."""
         repo = self._require_repository(workspace, repo_slug, "write"); sha = self._resolve(repo["id"], commit)
         if state not in {"INPROGRESS", "SUCCESSFUL", "FAILED", "STOPPED"}: raise BitbucketValidationError("invalid build state")
         self.session.execute("INSERT INTO bitbucket_commit_statuses(repository_id,commit_hash,key,name,state,url,description,created_at) VALUES(?,?,?,?,?,?,?,?) ON CONFLICT(repository_id,commit_hash,key) DO UPDATE SET name=excluded.name,state=excluded.state,url=excluded.url,description=excluded.description", (repo["id"], sha, key, name or key, state, url, description, self._time()))

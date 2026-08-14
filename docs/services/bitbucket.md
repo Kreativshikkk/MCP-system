@@ -1,7 +1,9 @@
 # Bitbucket service replica
 
-`bitbucket@0.1.0` is a bounded Bitbucket Cloud API 2.0 replica with 36 MCP
-tools, isolated SQLite/PostgreSQL state, real bare-Git objects and Inspector
+`bitbucket@0.1.0` is a bounded Bitbucket Cloud API 2.0 replica with 36 selected
+operations and 35 agent-facing MCP tools; the commit-status writer is
+admin-only so an agent cannot forge a green build. It has isolated
+SQLite/PostgreSQL state, real bare-Git objects and Inspector
 projection. The pinned official Swagger snapshot and selected operation matrix
 are under `contracts/bitbucket/`. Covered workflows are repositories, commits,
 files, branches, issues/comments, pull-request review/merge, Pipelines steps and

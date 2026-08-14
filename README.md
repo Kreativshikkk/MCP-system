@@ -36,15 +36,16 @@ coverage boundary are documented in `docs/services/github.md`.
 The bounded `gitlab@0.1.0` core adds groups/projects, labels, issues/notes,
 repository files/commits/branches/tags, merge requests/discussions/approvals,
 pipelines/jobs/statuses, and releases. It preserves the same
-SQLite/PostgreSQL isolation and real-Git guarantees and exposes 78 MCP tools
-through `gitlab_rest_v4` plus 78 matching HTTP routes under `/api/v4`.
+SQLite/PostgreSQL isolation and real-Git guarantees and exposes 77 agent-facing
+MCP tools through `gitlab_rest_v4` plus 78 HTTP routes under `/api/v4`. The
+CI-verdict writer is admin-only so an agent cannot forge a green build.
 
 The bounded `jira@0.1.0` core adds users, projects, issues, comments,
 workflow transitions, issue links, Scrum boards, and sprint lifecycle. Its
 `jira_rest_v3` MCP surface exposes 22 tools backed by isolated relational state.
 
-The six built-in surfaces expose 222 tools in the combined company template
-through a stateful MCP
+The six built-in surfaces expose 220 agent-facing tools in the combined company
+template through a stateful MCP
 `2025-11-25` JSON-RPC stdio server. Environment, actor, and service routing are
 fixed when the server starts rather than accepted from model-controlled tool
 arguments. Setup and protocol details are in `docs/mcp.md`.
@@ -58,8 +59,15 @@ run `scripts/materialize_company.py` followed by
 `scripts/generate_mcp_config.py`. Exact commands are in `docs/mcp.md`.
 
 MCP and HTTP provider calls are recorded in the same persistent operation
-timeline for future task inspection and standup/release artifacts. See
-`docs/operation-log.md`.
+timeline for future task inspection and standup/release artifacts. Every entry
+carries a monotonic per-environment `seq`, so a caller can ask "what has this
+actor done since I last looked". See `docs/operation-log.md`.
+
+An external harness drives all of this in process: it creates and deletes
+environments, freezes one for the duration of a snapshot, and exports a
+byte-stable image of a whole world. Those primitives and the reasoning behind
+each are in `docs/harness-integration.md`; the two-service environment they
+use is `configs/templates/aabench-gitlab-jira.toml`.
 
 The completed boundary is deliberately bounded: local agents use MCP over
 stdio, and repository work uses explicit provider-shaped commit/file/branch

@@ -112,6 +112,10 @@ class Environment:
     template_id: str | None = None
     snapshot_id: str | None = None
     failure_reason: str | None = None
+    # While frozen, agent-plane writes are refused so a snapshot cannot tear.
+    # The flag lives in the control plane because the agents that must observe
+    # it run in other processes.
+    frozen: bool = False
 
 
 @dataclass(frozen=True, slots=True)
@@ -141,6 +145,11 @@ class OperationRecord:
     completed_at: datetime | None = None
     result: Any | None = None
     error: Mapping[str, Any] | None = None
+    # Monotonic per environment, assigned by the control plane on insert.
+    # Wall-clock ordering with a random-uuid tiebreak is not a watermark.
+    seq: int = 0
+    # The MCP request id this operation came from, when there was one.
+    tool_call_id: str | None = None
 
     def __post_init__(self) -> None:
         if not self.id.strip():

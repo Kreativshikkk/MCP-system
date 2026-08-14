@@ -91,7 +91,6 @@ def gitlab_rest_v4_surface() -> SurfaceSpec:
         ("cancel_job", {**PROJECT, "job_id": I}, ("project", "job_id"), False),
         ("play_job", {**PROJECT, "job_id": I}, ("project", "job_id"), False),
         ("list_commit_statuses", {**PROJECT, "sha": S}, ("project", "sha"), True),
-        ("set_commit_status", {**PROJECT, "sha": S, "state": S, "name": S, "target_url": S, "description": S}, ("project", "sha", "state"), False),
         ("list_releases", PROJECT, ("project",), True),
         ("get_release", {**PROJECT, "tag_name": S}, ("project", "tag_name"), True),
         ("create_release", {**PROJECT, "tag_name": S, "name": S, "description": S, "released_at": S, "ref": S}, ("project", "tag_name"), False),

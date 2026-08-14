@@ -412,6 +412,29 @@ class GitLabOperations:
             self.git_data_plane.repository(project_row["id"]).update_branch(branch, commit["sha"])
         return {"name": branch, "merged": False, "protected": protected, "commit": {"id": commit["sha"]}}
 
+    def set_branch_head(self, project: str, *, branch: str, sha: str) -> dict[str, Any]:
+        """Move a branch to an existing commit in both planes.
+
+        Simulation-only ref writer; intentionally absent from public surfaces.
+        Agents move branches by committing or merging, the way they would
+        against a real GitLab. A harness that authors history needs to place a
+        ref directly, and doing that behind GitLab's back would leave the SQL
+        branch row and refs/heads/* disagreeing.
+        """
+        project_row = self._require_project(project, 40)
+        commit = self._require_commit(project_row["id"], sha)
+        updated = self.session.execute(
+            "UPDATE gitlab_branches SET head_sha=? WHERE project_id=? AND name=?",
+            (commit["sha"], project_row["id"], branch),
+        )
+        if getattr(updated, "rowcount", 1) == 0:
+            raise GitLabNotFound("404 Branch Not Found")
+        if self.git_data_plane is not None:
+            self.git_data_plane.repository(project_row["id"]).update_branch(
+                branch, commit["sha"]
+            )
+        return {"name": branch, "commit": {"id": commit["sha"]}}
+
     def list_branches(self, project: str) -> list[dict[str, Any]]:
         row = self._require_project(project)
         branches = self.session.execute("SELECT * FROM gitlab_branches WHERE project_id=? ORDER BY lower(name)", (row["id"],)).fetchall()
@@ -445,6 +468,10 @@ class GitLabOperations:
             self.session.execute("INSERT INTO gitlab_tags(project_id,name,commit_sha,message,created_at) VALUES(?,?,?,?,?)", (project_row["id"], tag_name, sha, message, self._now()))
         except Exception as exc:
             raise GitLabConflict("Tag already exists") from exc
+        # write refs/tags/* as well: a tag that is only a SQL row is invisible
+        # to every git-level read, including the portable exporter
+        if self.git_data_plane is not None:
+            self.git_data_plane.repository(project_row["id"]).update_tag(tag_name, sha)
         return self._tag(self.session.execute("SELECT * FROM gitlab_tags WHERE project_id=? AND name=?", (project_row["id"], tag_name)).fetchone())
 
     def get_tag(self, project: str, tag_name: str) -> dict[str, Any]:
@@ -739,6 +766,12 @@ class GitLabOperations:
     def set_commit_status(self, project: str, sha: str, *, state: str,
                           name: str = "default", target_url: str | None = None,
                           description: str | None = None) -> dict[str, Any]:
+        """CI verdict writer; intentionally absent from public surfaces.
+
+        An agent that can post state="success" can forge a green build, which
+        makes every downstream "did CI pass" judgement worthless. Only the
+        harness records CI outcomes, the same rule update_pipeline follows.
+        """
         project_row = self._require_project(project, 30)
         self._require_commit(project_row["id"], sha)
         if state not in {"pending", "running", "success", "failed", "canceled", "skipped"}:

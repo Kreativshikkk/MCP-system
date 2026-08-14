@@ -114,6 +114,16 @@ _CONTROL_PLANE_MIGRATION_4 = """
 ALTER TABLE environments ADD COLUMN snapshot_id TEXT;
 """
 
+# 5: a real watermark (monotonic per-environment seq), the MCP request id the
+# operation came from, and the cross-process freeze flag.
+_CONTROL_PLANE_MIGRATION_5 = """
+ALTER TABLE environments ADD COLUMN frozen INTEGER NOT NULL DEFAULT 0;
+ALTER TABLE operations ADD COLUMN seq INTEGER NOT NULL DEFAULT 0;
+ALTER TABLE operations ADD COLUMN tool_call_id TEXT;
+
+CREATE INDEX operations_environment_seq ON operations(environment_id, seq);
+"""
+
 
 class SQLiteControlPlane:
     def __init__(self, database_path: Path) -> None:
@@ -162,6 +172,9 @@ class SQLiteControlPlane:
             if 4 not in applied:
                 connection.executescript(_CONTROL_PLANE_MIGRATION_4)
                 connection.execute("INSERT INTO control_plane_migrations(version) VALUES (4)")
+            if 5 not in applied:
+                connection.executescript(_CONTROL_PLANE_MIGRATION_5)
+                connection.execute("INSERT INTO control_plane_migrations(version) VALUES (5)")
 
     def recover_interrupted_provisioning(self, at: datetime) -> None:
         timestamp = at.isoformat()
@@ -531,14 +544,22 @@ class SQLiteControlPlane:
             ).fetchall()
         return tuple(self._to_template(row) for row in rows)
 
-    def begin_operation(self, operation: OperationRecord) -> None:
+    def begin_operation(self, operation: OperationRecord) -> int:
+        """Insert the record and return its monotonic per-environment seq."""
         with self._connect() as connection:
+            connection.execute("BEGIN IMMEDIATE")
+            row = connection.execute(
+                "SELECT COALESCE(MAX(seq), 0) FROM operations WHERE environment_id = ?",
+                (operation.environment_id,),
+            ).fetchone()
+            seq = int(row[0]) + 1
             connection.execute(
                 """
                 INSERT INTO operations(
                     id, environment_id, service_instance_id, plugin_id, actor,
-                    transport, operation_name, request_json, status, started_at
-                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                    transport, operation_name, request_json, status, started_at,
+                    seq, tool_call_id
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 """,
                 (
                     operation.id,
@@ -551,8 +572,11 @@ class SQLiteControlPlane:
                     json.dumps(operation.request, sort_keys=True, separators=(",", ":")),
                     operation.status,
                     operation.started_at.isoformat(),
+                    seq,
+                    operation.tool_call_id,
                 ),
             )
+            return seq
 
     def complete_operation(
         self,
@@ -594,23 +618,65 @@ class SQLiteControlPlane:
         *,
         service_instance_id: str | None = None,
         limit: int = 100,
+        since_seq: int = 0,
+        actor: str | None = None,
     ) -> tuple[OperationRecord, ...]:
-        statement = "SELECT * FROM operations WHERE environment_id = ?"
-        parameters: list[object] = [environment_id]
+        statement = "SELECT * FROM operations WHERE environment_id = ? AND seq > ?"
+        parameters: list[object] = [environment_id, since_seq]
         if service_instance_id is not None:
             statement += " AND service_instance_id = ?"
             parameters.append(service_instance_id)
-        statement += " ORDER BY started_at, id LIMIT ?"
+        if actor is not None:
+            statement += " AND actor = ?"
+            parameters.append(actor)
+        statement += " ORDER BY seq LIMIT ?"
         parameters.append(limit)
         with self._connect() as connection:
             rows = connection.execute(statement, tuple(parameters)).fetchall()
         return tuple(self._to_operation(row) for row in rows)
 
+    def operation_watermark(self, environment_id: str) -> int:
+        """Highest assigned seq: everything at or below it already happened."""
+        with self._connect() as connection:
+            row = connection.execute(
+                "SELECT COALESCE(MAX(seq), 0) FROM operations WHERE environment_id = ?",
+                (environment_id,),
+            ).fetchone()
+        return int(row[0])
+
     def get_operation_cursor(self, environment_id: str) -> tuple[int, str | None]:
         with self._connect() as connection:
             count = connection.execute("SELECT count(*) FROM operations WHERE environment_id=?", (environment_id,)).fetchone()[0]
-            row = connection.execute("SELECT id FROM operations WHERE environment_id=? ORDER BY started_at DESC,id DESC LIMIT 1", (environment_id,)).fetchone()
+            row = connection.execute("SELECT id FROM operations WHERE environment_id=? ORDER BY seq DESC LIMIT 1", (environment_id,)).fetchone()
         return count, row[0] if row else None
+
+    def set_environment_frozen(
+        self, environment_id: str, frozen: bool, at: datetime
+    ) -> None:
+        with self._connect() as connection:
+            connection.execute(
+                "UPDATE environments SET frozen = ?, updated_at = ? WHERE id = ?",
+                (1 if frozen else 0, at.isoformat(), environment_id),
+            )
+
+    def delete_environment_record(self, environment_id: str) -> None:
+        """Remove the environment and everything that references it."""
+        with self._connect() as connection:
+            connection.execute("BEGIN IMMEDIATE")
+            connection.execute(
+                "DELETE FROM operations WHERE environment_id = ?", (environment_id,)
+            )
+            connection.execute(
+                "DELETE FROM environment_mcp_surfaces WHERE environment_id = ?",
+                (environment_id,),
+            )
+            connection.execute(
+                "DELETE FROM environment_services WHERE environment_id = ?",
+                (environment_id,),
+            )
+            connection.execute(
+                "DELETE FROM environments WHERE id = ?", (environment_id,)
+            )
 
     @staticmethod
     def _to_environment(row: sqlite3.Row) -> Environment:
@@ -623,6 +689,7 @@ class SQLiteControlPlane:
             failure_reason=row["failure_reason"],
             created_at=datetime.fromisoformat(row["created_at"]),
             updated_at=datetime.fromisoformat(row["updated_at"]),
+            frozen=bool(row["frozen"]),
         )
 
     @staticmethod
@@ -657,4 +724,6 @@ class SQLiteControlPlane:
                 if row["completed_at"] is None
                 else datetime.fromisoformat(row["completed_at"])
             ),
+            seq=int(row["seq"]),
+            tool_call_id=row["tool_call_id"],
         )

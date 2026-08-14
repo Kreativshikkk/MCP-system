@@ -118,6 +118,15 @@ _MIGRATION_3 = """
 ALTER TABLE environments ADD COLUMN snapshot_id TEXT;
 """
 
+# 4: a real watermark (monotonic per-environment seq), the MCP request id the
+# operation came from, and the cross-process freeze flag.
+_MIGRATION_4 = """
+ALTER TABLE environments ADD COLUMN frozen BOOLEAN NOT NULL DEFAULT FALSE;
+ALTER TABLE operations ADD COLUMN seq BIGINT NOT NULL DEFAULT 0;
+ALTER TABLE operations ADD COLUMN tool_call_id TEXT;
+CREATE INDEX operations_environment_seq ON operations(environment_id, seq);
+"""
+
 
 class PostgresControlPlane:
     def __init__(self, dsn: str, *, schema: str = "mcp_control") -> None:
@@ -175,6 +184,10 @@ class PostgresControlPlane:
                 for statement in _split_statements(_MIGRATION_3):
                     connection.execute(statement)
                 connection.execute("INSERT INTO control_plane_migrations(version) VALUES (3)")
+            if 4 not in applied:
+                for statement in _split_statements(_MIGRATION_4):
+                    connection.execute(statement)
+                connection.execute("INSERT INTO control_plane_migrations(version) VALUES (4)")
 
     def recover_interrupted_provisioning(self, at: datetime) -> None:
         with self._connect() as connection:
@@ -527,14 +540,28 @@ class PostgresControlPlane:
             ).fetchall()
         return tuple(self._to_template(row) for row in rows)
 
-    def begin_operation(self, operation: OperationRecord) -> None:
+    def begin_operation(self, operation: OperationRecord) -> int:
+        """Insert the record and return its monotonic per-environment seq."""
         with self._connect() as connection:
+            # lock the environment row so concurrent writers cannot mint the
+            # same seq; the watermark is only useful if it is really monotonic
+            connection.execute(
+                "SELECT id FROM environments WHERE id = %s FOR UPDATE",
+                (operation.environment_id,),
+            )
+            row = connection.execute(
+                "SELECT COALESCE(MAX(seq), 0) AS seq FROM operations"
+                " WHERE environment_id = %s",
+                (operation.environment_id,),
+            ).fetchone()
+            seq = int(row["seq"]) + 1
             connection.execute(
                 """
                 INSERT INTO operations(
                     id, environment_id, service_instance_id, plugin_id, actor,
-                    transport, operation_name, request_json, status, started_at
-                ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+                    transport, operation_name, request_json, status, started_at,
+                    seq, tool_call_id
+                ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
                 """,
                 (
                     operation.id,
@@ -547,8 +574,11 @@ class PostgresControlPlane:
                     json.dumps(operation.request),
                     operation.status,
                     operation.started_at,
+                    seq,
+                    operation.tool_call_id,
                 ),
             )
+            return seq
 
     def complete_operation(
         self,
@@ -587,23 +617,64 @@ class PostgresControlPlane:
         *,
         service_instance_id: str | None = None,
         limit: int = 100,
+        since_seq: int = 0,
+        actor: str | None = None,
     ) -> tuple[OperationRecord, ...]:
-        statement = "SELECT * FROM operations WHERE environment_id = %s"
-        parameters: list[object] = [environment_id]
+        statement = "SELECT * FROM operations WHERE environment_id = %s AND seq > %s"
+        parameters: list[object] = [environment_id, since_seq]
         if service_instance_id is not None:
             statement += " AND service_instance_id = %s"
             parameters.append(service_instance_id)
-        statement += " ORDER BY started_at, id LIMIT %s"
+        if actor is not None:
+            statement += " AND actor = %s"
+            parameters.append(actor)
+        statement += " ORDER BY seq LIMIT %s"
         parameters.append(limit)
         with self._connect() as connection:
             rows = connection.execute(statement, tuple(parameters)).fetchall()
         return tuple(self._to_operation(row) for row in rows)
 
+    def operation_watermark(self, environment_id: str) -> int:
+        with self._connect() as connection:
+            row = connection.execute(
+                "SELECT COALESCE(MAX(seq), 0) AS seq FROM operations"
+                " WHERE environment_id = %s",
+                (environment_id,),
+            ).fetchone()
+        return int(row["seq"])
+
     def get_operation_cursor(self, environment_id: str) -> tuple[int, str | None]:
         with self._connect() as connection:
             count = connection.execute("SELECT count(*) AS count FROM operations WHERE environment_id=%s", (environment_id,)).fetchone()["count"]
-            row = connection.execute("SELECT id FROM operations WHERE environment_id=%s ORDER BY started_at DESC,id DESC LIMIT 1", (environment_id,)).fetchone()
+            row = connection.execute("SELECT id FROM operations WHERE environment_id=%s ORDER BY seq DESC LIMIT 1", (environment_id,)).fetchone()
         return count, row["id"] if row else None
+
+    def set_environment_frozen(
+        self, environment_id: str, frozen: bool, at: datetime
+    ) -> None:
+        with self._connect() as connection:
+            connection.execute(
+                "UPDATE environments SET frozen = %s, updated_at = %s WHERE id = %s",
+                (frozen, at, environment_id),
+            )
+
+    def delete_environment_record(self, environment_id: str) -> None:
+        """Remove the environment and everything that references it."""
+        with self._connect() as connection:
+            connection.execute(
+                "DELETE FROM operations WHERE environment_id = %s", (environment_id,)
+            )
+            connection.execute(
+                "DELETE FROM environment_mcp_surfaces WHERE environment_id = %s",
+                (environment_id,),
+            )
+            connection.execute(
+                "DELETE FROM environment_services WHERE environment_id = %s",
+                (environment_id,),
+            )
+            connection.execute(
+                "DELETE FROM environments WHERE id = %s", (environment_id,)
+            )
 
     @staticmethod
     def _to_environment(row: dict[str, Any]) -> Environment:
@@ -616,6 +687,7 @@ class PostgresControlPlane:
             failure_reason=row["failure_reason"],
             created_at=row["created_at"],
             updated_at=row["updated_at"],
+            frozen=bool(row["frozen"]),
         )
 
     @staticmethod
@@ -646,6 +718,8 @@ class PostgresControlPlane:
             error=row["error_json"],
             started_at=row["started_at"],
             completed_at=row["completed_at"],
+            seq=int(row["seq"]),
+            tool_call_id=row["tool_call_id"],
         )
 
 
