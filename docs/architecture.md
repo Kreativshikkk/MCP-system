@@ -104,7 +104,7 @@ routes, and a universal Inspector adapter. `jira@0.1.0` adds independent task
 tracking with issues, comments, transitions, links, boards, sprints, a 22-tool
 MCP surface, and an Inspector projection.
 Bitbucket, Linear, and YouTrack complete the six-provider company template. The
-combined role-bound stdio MCP surface exposes 220 agent-facing tools. All
+combined role-bound stdio MCP surface exposes 221 agent-facing tools. All
 selected contracts, SQLite and PostgreSQL lifecycle tests, cross-service
 workflows, and recorded live differentials pass independently.
 

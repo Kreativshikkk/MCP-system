@@ -18,6 +18,8 @@ Implemented resources:
 - pipelines, jobs, traces, and commit statuses;
 - releases;
 - a 78-tool `gitlab_rest_v4` MCP surface and 78 `/api/v4` HTTP routes;
+- live three-way merge status plus an MCP-only conflict-resolution commit
+  operation that records source and target as parents;
 - the provider-neutral Inspector projection, including real bounded diffs.
 
 The API vocabulary follows GitLab conventions such as project paths, per-project

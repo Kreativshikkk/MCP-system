@@ -171,6 +171,19 @@ class BareGitRepository:
             "message": message,
         }
 
+    def merge_base(self, left_sha: str, right_sha: str) -> str:
+        """Best common ancestor used for three-way merge/conflict checks."""
+        self.require_object(left_sha, "commit")
+        self.require_object(right_sha, "commit")
+        result = self._run_process(
+            "merge-base", left_sha, right_sha, check=False
+        )
+        if result.returncode != 0 or not result.stdout.strip():
+            raise GitStorageError(
+                f"commits {left_sha!r} and {right_sha!r} have no merge base"
+            )
+        return result.stdout.splitlines()[0].strip()
+
     def diff(
         self, base_sha: str, head_sha: str, *, max_bytes: int = 512_000
     ) -> dict[str, object]:
@@ -451,6 +464,9 @@ class TransactionalBareGitRepository:
 
     def commit_metadata(self, sha: str) -> dict[str, object]:
         return self.repository.commit_metadata(sha)
+
+    def merge_base(self, left_sha: str, right_sha: str) -> str:
+        return self.repository.merge_base(left_sha, right_sha)
 
     def diff(
         self, base_sha: str, head_sha: str, *, max_bytes: int = 512_000

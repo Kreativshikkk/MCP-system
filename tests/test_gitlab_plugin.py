@@ -172,6 +172,84 @@ class GitLabPluginTests(unittest.TestCase):
         release = self.call("engineer", "create_release", project="acme/product", tag_name=tag["name"], name="Version 1.0.0")
         self.assertEqual(release["tag_name"], "v1.0.0")
 
+    def test_conflicting_merge_request_can_be_resolved_through_mcp(self) -> None:
+        base = self.call(
+            "engineer", "create_commit", project="acme/product",
+            message="Base", author="engineer", files={"app.py": "BASE = True\n"},
+        )
+        self.call(
+            "engineer", "create_branch", project="acme/product",
+            branch="main", ref=base["sha"],
+        )
+        self.call(
+            "engineer", "create_branch", project="acme/product",
+            branch="feature/conflict", ref=base["sha"],
+        )
+        source = self.call(
+            "engineer", "create_repository_commit", project="acme/product",
+            branch="feature/conflict", commit_message="Add feature",
+            actions=[{
+                "action": "update", "file_path": "app.py",
+                "content": "BASE = True\nFEATURE = True\n",
+            }],
+        )
+        target = self.call(
+            "engineer", "create_repository_commit", project="acme/product",
+            branch="main", commit_message="Add maintenance mode",
+            actions=[{
+                "action": "update", "file_path": "app.py",
+                "content": "BASE = True\nMAINTENANCE = True\n",
+            }],
+        )
+        mr = self.call(
+            "engineer", "create_merge_request", project="acme/product",
+            title="Feature", source_branch="feature/conflict",
+            target_branch="main",
+        )
+        self.assertTrue(mr["has_conflicts"])
+        self.assertEqual(mr["conflict_paths"], ["app.py"])
+        self.assertEqual(mr["merge_status"], "cannot_be_merged")
+        self.assertEqual(mr["diff_refs"]["base_sha"], base["sha"])
+        self.assertEqual(mr["diff_refs"]["start_sha"], target["id"])
+
+        dispatcher = MCPDispatcher(
+            self.system, self.environment.id, actor="engineer",
+            bindings={"gitlab_rest_v4": "gitlab"},
+        )
+        response = dispatcher.call_tool(
+            "gitlab_resolve_merge_request_conflicts",
+            {
+                "project": "acme/product",
+                "merge_request_iid": mr["iid"],
+                "commit_message": "Resolve main conflict",
+                "actions": [{
+                    "action": "update",
+                    "file_path": "app.py",
+                    "content": "BASE = True\nMAINTENANCE = True\nFEATURE = True\n",
+                }],
+            },
+        )
+        self.assertFalse(response["isError"])
+        resolved = response["structuredContent"]["result"]
+        self.assertFalse(resolved["has_conflicts"])
+        self.assertEqual(resolved["merge_status"], "can_be_merged")
+        metadata = self.system.open_git_data_plane(
+            self.environment.id, "gitlab"
+        ).repository(1).commit_metadata(resolved["sha"])
+        self.assertEqual(metadata["parents"], (source["id"], target["id"]))
+
+        merged = self.call(
+            "lead", "merge_merge_request", project="acme/product",
+            merge_request_iid=mr["iid"], sha=resolved["sha"],
+        )
+        self.assertEqual(merged["state"], "merged")
+        repository = self.system.open_git_data_plane(
+            self.environment.id, "gitlab"
+        ).repository(1)
+        content = repository.read_file(repository.resolve_branch("main"), "app.py")
+        self.assertIn(b"MAINTENANCE = True", content)
+        self.assertIn(b"FEATURE = True", content)
+
     def test_gitlab_http_v4_uses_real_paths_and_parameters(self) -> None:
         router = GitLabHTTPRouter(self.system, self.environment.id, actor="engineer")
         current = router.dispatch(HTTPRequest("GET", "/api/v4/user"))

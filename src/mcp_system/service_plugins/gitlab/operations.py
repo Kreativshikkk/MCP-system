@@ -297,38 +297,8 @@ class GitLabOperations:
                 ).fetchone()["count"]
                 if existing:
                     raise GitLabNotFound("404 Branch Not Found")
-        if not actions:
-            raise GitLabValidationError("actions is empty")
-        files: dict[str, str | bytes | None] = {}
         repository = self._git_repository(project_row["id"])
-        for action in actions:
-            kind = action.get("action")
-            path = action.get("file_path")
-            if kind not in {"create", "update", "delete", "move"} or not isinstance(path, str):
-                raise GitLabValidationError("unsupported or invalid commit action")
-            if kind == "delete":
-                files[path] = None
-                continue
-            content = action.get("content")
-            if kind == "move":
-                previous = action.get("previous_path")
-                if not isinstance(previous, str):
-                    raise GitLabValidationError("move action requires previous_path")
-                if content is None:
-                    if parent_sha is None:
-                        raise GitLabValidationError(
-                            "move action requires a starting revision"
-                        )
-                    content = repository.read_file(parent_sha, previous)
-                files[previous] = None
-            if not isinstance(content, (str, bytes)):
-                raise GitLabValidationError(f"{kind} action requires content")
-            if action.get("encoding", "text") == "base64" and isinstance(content, str):
-                try:
-                    content = base64.b64decode(content, validate=True)
-                except ValueError as exc:
-                    raise GitLabValidationError("invalid base64 content") from exc
-            files[path] = content
+        files = self._files_from_actions(repository, parent_sha, actions)
         commit = self.create_commit(
             project, message=commit_message, author=self.actor_username,
             parent_shas=(parent_sha,) if parent_sha else (), files=files,
@@ -604,26 +574,82 @@ class GitLabOperations:
             raise GitLabConflict("Merge request cannot be merged")
         if sha is not None and sha != mr["sha"]:
             raise GitLabConflict("SHA does not match HEAD of source branch")
+        if mr["has_conflicts"]:
+            raise GitLabConflict(
+                "Merge request has unresolved conflicts: "
+                + ", ".join(mr["conflict_paths"])
+            )
         approvals = self.get_merge_request_approvals(project, merge_request_iid)
         if mr["reviewers"] and not approvals["approved"]:
             raise GitLabForbidden("Merge request is not approved")
         message = merge_commit_message or f"Merge branch '{mr['source_branch']}' into '{mr['target_branch']}'"
         repository = self._git_repository(project_row["id"])
-        target_sha = mr["diff_refs"]["base_sha"]
+        base_sha = mr["diff_refs"]["base_sha"]
+        target_sha = mr["diff_refs"]["start_sha"]
         source_sha = mr["sha"]
-        target_paths = {item["path"] for item in repository.list_tree(target_sha, recursive=True) if item["type"] == "blob"}
-        source_paths = {item["path"] for item in repository.list_tree(source_sha, recursive=True) if item["type"] == "blob"}
-        merged_files: dict[str, bytes | None] = {
-            path: repository.read_file(source_sha, path) for path in source_paths
-        }
-        merged_files.update({path: None for path in target_paths - source_paths})
-        commit = self.create_commit(project, message=message, author=self.actor_username, parent_shas=(target_sha, source_sha), files=merged_files)
+        base_tree = repository.read_tree_contents(base_sha)
+        source_tree = repository.read_tree_contents(source_sha)
+        target_tree = repository.read_tree_contents(target_sha)
+        merged_tree = self._merge_trees(base_tree, source_tree, target_tree)
+        merged_files = self._tree_delta(target_tree, merged_tree)
+        commit = self.create_commit(
+            project, message=message, author=self.actor_username,
+            parent_shas=(target_sha, source_sha), files=merged_files,
+        )
         timestamp = self._now()
         actor = self._require_actor()
         self.session.execute("UPDATE gitlab_branches SET head_sha=? WHERE project_id=? AND name=?", (commit["id"], project_row["id"], mr["target_branch"]))
         self._git_repository(project_row["id"]).update_branch(mr["target_branch"], commit["id"], expected_old_sha=target_sha)
-        self.session.execute("UPDATE gitlab_merge_requests SET state='merged',merged_by_id=?,merge_commit_sha=?,merged_at=?,updated_at=? WHERE id=?", (actor["id"], commit["id"], timestamp, timestamp, mr["id"]))
+        self.session.execute("UPDATE gitlab_merge_requests SET state='merged',source_sha=?,target_sha=?,merged_by_id=?,merge_commit_sha=?,merged_at=?,updated_at=? WHERE id=?", (source_sha, target_sha, actor["id"], commit["id"], timestamp, timestamp, mr["id"]))
         return self.get_merge_request(project, merge_request_iid)
+
+    def resolve_merge_request_conflicts(
+        self,
+        project: str,
+        merge_request_iid: int,
+        *,
+        commit_message: str,
+        actions: Sequence[Mapping[str, Any]],
+    ) -> dict[str, Any]:
+        """Commit an explicit resolution on the source branch with two parents."""
+        project_row = self._require_project(project, 30)
+        mr = self.get_merge_request(project, merge_request_iid)
+        if mr["state"] != "opened":
+            raise GitLabConflict("Merge request is not open")
+        if not mr["has_conflicts"]:
+            raise GitLabConflict("Merge request has no conflicts to resolve")
+        repository = self._git_repository(project_row["id"])
+        source_sha = mr["sha"]
+        target_sha = mr["diff_refs"]["start_sha"]
+        files = self._files_from_actions(repository, source_sha, actions)
+        if set(files) != set(mr["conflict_paths"]):
+            raise GitLabValidationError(
+                "resolution actions must touch exactly the conflict paths: "
+                + ", ".join(mr["conflict_paths"])
+            )
+        commit = self.create_commit(
+            project,
+            message=commit_message,
+            author=self.actor_username,
+            parent_shas=(source_sha, target_sha),
+            files=files,
+        )
+        self.session.execute(
+            "UPDATE gitlab_branches SET head_sha=? WHERE project_id=? AND name=?",
+            (commit["id"], project_row["id"], mr["source_branch"]),
+        )
+        self.session.execute(
+            "UPDATE gitlab_merge_requests SET source_sha=?,target_sha=?,updated_at=? "
+            "WHERE id=?",
+            (commit["id"], target_sha, self._now(), mr["id"]),
+        )
+        repository.update_branch(
+            mr["source_branch"], commit["id"], expected_old_sha=source_sha
+        )
+        resolved = self.get_merge_request(project, merge_request_iid)
+        if resolved["has_conflicts"]:
+            raise GitLabConflict("resolution commit did not clear the conflicts")
+        return resolved
 
     def create_merge_request_discussion(self, project: str, merge_request_iid: int, *, body: str) -> dict[str, Any]:
         project_row = self._require_project(project, 30)
@@ -918,6 +944,89 @@ class GitLabOperations:
             raise GitLabConflict("Git data plane is not configured")
         return self.git_data_plane.repository(project_id)
 
+    @staticmethod
+    def _files_from_actions(
+        repository: Any,
+        parent_sha: str | None,
+        actions: Sequence[Mapping[str, Any]],
+    ) -> dict[str, str | bytes | None]:
+        if not actions:
+            raise GitLabValidationError("actions is empty")
+        files: dict[str, str | bytes | None] = {}
+        for action in actions:
+            kind = action.get("action")
+            path = action.get("file_path")
+            if kind not in {"create", "update", "delete", "move"} or not isinstance(path, str):
+                raise GitLabValidationError("unsupported or invalid commit action")
+            if kind == "delete":
+                files[path] = None
+                continue
+            content = action.get("content")
+            if kind == "move":
+                previous = action.get("previous_path")
+                if not isinstance(previous, str):
+                    raise GitLabValidationError("move action requires previous_path")
+                if content is None:
+                    if parent_sha is None:
+                        raise GitLabValidationError(
+                            "move action requires a starting revision"
+                        )
+                    content = repository.read_file(parent_sha, previous)
+                files[previous] = None
+            if not isinstance(content, (str, bytes)):
+                raise GitLabValidationError(f"{kind} action requires content")
+            if action.get("encoding", "text") == "base64" and isinstance(content, str):
+                try:
+                    content = base64.b64decode(content, validate=True)
+                except ValueError as exc:
+                    raise GitLabValidationError("invalid base64 content") from exc
+            files[path] = content
+        return files
+
+    @staticmethod
+    def _file_conflicts(
+        base: Mapping[str, bytes],
+        source: Mapping[str, bytes],
+        target: Mapping[str, bytes],
+    ) -> list[str]:
+        return sorted(
+            path for path in set(base) | set(source) | set(target)
+            if source.get(path) != base.get(path)
+            and target.get(path) != base.get(path)
+            and source.get(path) != target.get(path)
+        )
+
+    @staticmethod
+    def _merge_trees(
+        base: Mapping[str, bytes],
+        source: Mapping[str, bytes],
+        target: Mapping[str, bytes],
+    ) -> dict[str, bytes]:
+        merged: dict[str, bytes] = {}
+        for path in set(base) | set(source) | set(target):
+            old = base.get(path)
+            src = source.get(path)
+            dst = target.get(path)
+            value = dst if src == old else src
+            if src == dst:
+                value = src
+            if value is not None:
+                merged[path] = value
+        return merged
+
+    @staticmethod
+    def _tree_delta(
+        previous: Mapping[str, bytes], target: Mapping[str, bytes]
+    ) -> dict[str, bytes | None]:
+        changed: dict[str, bytes | None] = {
+            path: content for path, content in target.items()
+            if previous.get(path) != content
+        }
+        for path in previous:
+            if path not in target:
+                changed[path] = None
+        return changed
+
     def _set_issue_labels(self, issue_id: int, project_id: int, labels: Sequence[str]) -> None:
         for name in labels:
             label = self.session.execute("SELECT id FROM gitlab_labels WHERE project_id=? AND lower(name)=lower(?)", (project_id, name)).fetchone()
@@ -984,7 +1093,32 @@ class GitLabOperations:
         author = self.session.execute("SELECT username FROM gitlab_users WHERE id=?", (row["author_id"],)).fetchone()
         reviewers = self.session.execute("SELECT u.username,r.approved FROM gitlab_merge_request_reviewers r JOIN gitlab_users u ON u.id=r.user_id WHERE r.merge_request_id=? ORDER BY lower(u.username)", (row["id"],)).fetchall()
         project = self._require_project_by_id(row["project_id"])
-        return {"id": row["id"], "iid": row["iid"], "project_id": row["project_id"], "title": row["title"], "description": row["description"], "state": row["state"], "author": self.get_user(author["username"]), "source_branch": row["source_branch"], "sha": row["source_sha"], "target_branch": row["target_branch"], "draft": bool(row["draft"]), "work_in_progress": bool(row["draft"]), "merge_status": "can_be_merged" if row["state"] == "opened" else "unchecked", "detailed_merge_status": "mergeable" if row["state"] == "opened" else "not_open", "merge_commit_sha": row["merge_commit_sha"], "reviewers": [self.get_user(item["username"]) for item in reviewers], "diff_refs": {"base_sha": row["target_sha"], "head_sha": row["source_sha"], "start_sha": row["target_sha"]}, "user_notes_count": len(self._list_notes("MergeRequest", row["id"])), "web_url": f"https://gitlab.local/{project['path_with_namespace']}/-/merge_requests/{row['iid']}", "created_at": _json_time(row["created_at"]), "updated_at": _json_time(row["updated_at"]), "merged_at": _json_time(row["merged_at"])}
+        source_sha = row["source_sha"]
+        target_sha = row["target_sha"]
+        conflict_paths: list[str] = []
+        base_sha = target_sha
+        if row["state"] == "opened" and self.git_data_plane is not None:
+            source = self._require_branch(row["project_id"], row["source_branch"])
+            target = self._require_branch(row["project_id"], row["target_branch"])
+            source_sha = source["head_sha"]
+            target_sha = target["head_sha"]
+            repository = self._git_repository(row["project_id"])
+            base_sha = repository.merge_base(source_sha, target_sha)
+            conflict_paths = self._file_conflicts(
+                repository.read_tree_contents(base_sha),
+                repository.read_tree_contents(source_sha),
+                repository.read_tree_contents(target_sha),
+            )
+        has_conflicts = bool(conflict_paths)
+        merge_status = (
+            "cannot_be_merged" if has_conflicts else
+            "can_be_merged" if row["state"] == "opened" else "unchecked"
+        )
+        detailed_status = (
+            "conflict" if has_conflicts else
+            "mergeable" if row["state"] == "opened" else "not_open"
+        )
+        return {"id": row["id"], "iid": row["iid"], "project_id": row["project_id"], "title": row["title"], "description": row["description"], "state": row["state"], "author": self.get_user(author["username"]), "source_branch": row["source_branch"], "sha": source_sha, "target_branch": row["target_branch"], "target_sha": target_sha, "draft": bool(row["draft"]), "work_in_progress": bool(row["draft"]), "merge_status": merge_status, "detailed_merge_status": detailed_status, "has_conflicts": has_conflicts, "conflict_paths": conflict_paths, "merge_commit_sha": row["merge_commit_sha"], "reviewers": [self.get_user(item["username"]) for item in reviewers], "diff_refs": {"base_sha": base_sha, "head_sha": source_sha, "start_sha": target_sha}, "user_notes_count": len(self._list_notes("MergeRequest", row["id"])), "web_url": f"https://gitlab.local/{project['path_with_namespace']}/-/merge_requests/{row['iid']}", "created_at": _json_time(row["created_at"]), "updated_at": _json_time(row["updated_at"]), "merged_at": _json_time(row["merged_at"])}
 
     def _note(self, row: Mapping[str, Any]) -> dict[str, Any]:
         author = self.session.execute("SELECT username,name FROM gitlab_users WHERE id=?", (row["author_id"],)).fetchone()

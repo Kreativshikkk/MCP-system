@@ -66,6 +66,7 @@ def gitlab_rest_v4_surface() -> SurfaceSpec:
         ("approve_merge_request", MR, ("project", "merge_request_iid"), False),
         ("unapprove_merge_request", MR, ("project", "merge_request_iid"), False),
         ("merge_merge_request", {**MR, "sha": S, "merge_commit_message": S}, ("project", "merge_request_iid"), False),
+        ("resolve_merge_request_conflicts", {**MR, "commit_message": S, "actions": ACTIONS}, ("project", "merge_request_iid", "commit_message", "actions"), False),
         ("list_merge_request_notes", MR, ("project", "merge_request_iid"), True),
         ("create_merge_request_note", {**MR, "body": S}, ("project", "merge_request_iid", "body"), False),
         ("get_merge_request_note", {**MR, "note_id": I}, ("project", "merge_request_iid", "note_id"), True),
