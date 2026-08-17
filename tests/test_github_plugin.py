@@ -13,6 +13,7 @@ from psycopg import sql
 from mcp_system import MCPSystem, PluginRegistry
 from mcp_system.config import load_template_spec
 from mcp_system.errors import ConfigurationError
+from mcp_system.mcp import MCPDispatcher
 from mcp_system.service_plugins import GitHubPlugin
 from mcp_system.service_plugins.github import (
     GitHubConflict,
@@ -323,7 +324,7 @@ class GitHubPluginSQLiteTests(unittest.TestCase):
                 "SELECT count(*) AS count FROM github_labels"
             ).fetchone()["count"]
 
-        self.assertEqual(len(tables), 20)
+        self.assertEqual(len(tables), 21)
         self.assertEqual(
             [(row["login"], row["user_type"]) for row in users],
             [
@@ -354,9 +355,29 @@ class GitHubPluginSQLiteTests(unittest.TestCase):
             release = operations.create_release("acme", "product", tag_name="v0.1.0", name="First", body="Ready")
             self.assertEqual(release["target_commitish"], "main")
             self.assertEqual(operations.list_releases("acme", "product")[0]["tag_name"], "v0.1.0")
+            self.assertEqual(operations.get_ref("acme", "product", "tags/v0.1.0")["object"]["sha"], commit["sha"])
+            self.assertEqual(self.system.open_git_data_plane(environment.id, "github").repository(1).resolve_tag("v0.1.0"), commit["sha"])
         with self.system.open_service_database(environment.id, "github") as session:
             projection = GitHubInspectorAdapter().project(session, self.system.open_git_data_plane(environment.id, "github"))
         self.assertEqual(projection["repositories"][0]["builds"][0]["conclusion"], "success")
+
+    def test_refs_dispatch_and_atomic_harness_completion(self) -> None:
+        template = self.system.create_template(load_template_spec(CONFIG))
+        environment = self.system.create_environment_from_template(template.id)
+        engineer = MCPDispatcher(self.system, environment.id, actor="engineer")
+        root = engineer.call_tool("github_create_commit", {"owner":"acme","repo":"product","message":"root","author":"engineer","files":{"a.txt":"a\n"}})["structuredContent"]["result"]
+        engineer.call_tool("github_create_ref", {"owner":"acme","repo":"product","ref":"refs/heads/main","sha":root["sha"]})
+        head = engineer.call_tool("github_create_commit", {"owner":"acme","repo":"product","message":"head","author":"engineer","parent_shas":[root["sha"]],"files":{"a.txt":"b\n"}})["structuredContent"]["result"]
+        updated = engineer.call_tool("github_update_ref", {"owner":"acme","repo":"product","ref":"heads/main","sha":head["sha"]})
+        self.assertFalse(updated["isError"], updated["structuredContent"])
+        self.assertEqual(self.system.open_git_data_plane(environment.id, "github").repository(1).resolve_branch("main"), head["sha"])
+        dispatched = engineer.call_tool("github_dispatch_workflow", {"owner":"acme","repo":"product","workflow_id":"ci.yml","ref":"main","inputs":{"suite":"full"}})
+        self.assertFalse(dispatched["isError"], dispatched["structuredContent"])
+        run = engineer.call_tool("github_list_workflow_runs", {"owner":"acme","repo":"product"})["structuredContent"]["result"]["workflow_runs"][0]
+        self.system.invoke_service_operation(environment.id, "github", actor="director", transport="ci-harness", operation="complete_workflow_run", arguments={"owner":"acme","repository":"product","run_id":run["id"],"conclusion":"success","log":"1 passed\n"})
+        jobs = engineer.call_tool("github_list_workflow_jobs", {"owner":"acme","repo":"product","run_id":run["id"]})["structuredContent"]["result"]["jobs"]
+        self.assertEqual((jobs[0]["status"], jobs[0]["conclusion"]), ("completed", "success"))
+        self.assertEqual(engineer.call_tool("github_get_workflow_job_log", {"owner":"acme","repo":"product","job_id":jobs[0]["id"]})["structuredContent"]["result"]["log"], "1 passed\n")
 
     def test_bootstrap_requires_an_organization_admin(self) -> None:
         plugin = GitHubPlugin()

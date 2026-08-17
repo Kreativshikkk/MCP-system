@@ -715,6 +715,41 @@ class GitLabOperations:
         self.session.execute("UPDATE gitlab_pipelines SET status=?,updated_at=? WHERE id=?", (status, self._now(), pipeline_id))
         return self._pipeline(self.session.execute("SELECT * FROM gitlab_pipelines WHERE id=?", (pipeline_id,)).fetchone())
 
+    def complete_pipeline(self, project: str, pipeline_id: int, *, status: str,
+                          trace: str) -> dict[str, Any]:
+        """Record an authoritative CI result; intentionally absent from public surfaces.
+
+        This adapter-specific admin hook is called by the CI harness, not by a
+        GitLab REST client or an MCP agent.  The operation boundary wraps the
+        pipeline and job updates in one database transaction.
+        """
+        actor = self._require_actor()
+        if not actor["is_admin"]:
+            raise GitLabForbidden("403 Forbidden")
+        row = self._require_project(project)
+        if status not in {"success", "failed", "canceled", "skipped"}:
+            raise GitLabValidationError("status must be a terminal pipeline status")
+        existing = self.session.execute(
+            "SELECT id FROM gitlab_pipelines WHERE project_id=? AND id=?",
+            (row["id"], pipeline_id),
+        ).fetchone()
+        if existing is None:
+            raise GitLabNotFound("404 Pipeline Not Found")
+        timestamp = self._now()
+        self.session.execute(
+            "UPDATE gitlab_pipelines SET status=?,updated_at=? WHERE id=?",
+            (status, timestamp, pipeline_id),
+        )
+        self.session.execute(
+            "UPDATE gitlab_jobs SET status=?,trace=?,finished_at=? WHERE project_id=? AND pipeline_id=?",
+            (status, trace, timestamp, row["id"], pipeline_id),
+        )
+        return self._pipeline(
+            self.session.execute(
+                "SELECT * FROM gitlab_pipelines WHERE id=?", (pipeline_id,)
+            ).fetchone()
+        )
+
     def list_pipeline_jobs(self, project: str, pipeline_id: int) -> list[dict[str, Any]]:
         row = self._require_project(project)
         self.get_pipeline(project, pipeline_id)

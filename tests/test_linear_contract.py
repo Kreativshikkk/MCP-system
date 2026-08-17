@@ -10,9 +10,9 @@ class LinearContractTests(unittest.TestCase):
         provenance = json.loads(Path("contracts/linear/provenance.json").read_text())
         selected = json.loads(Path("contracts/linear/selected-operations.json").read_text())
         self.assertEqual(selected["sourceSha256"], provenance["sourceSha256"])
-        self.assertEqual(len(selected["operations"]), 20)
+        self.assertEqual(len(selected["operations"]), 22)
         self.assertEqual({item["kind"] for item in selected["operations"]}, {"query", "mutation"})
-        self.assertEqual(len({item["mcpTool"] for item in selected["operations"]}), 20)
+        self.assertEqual(len({item["mcpTool"] for item in selected["operations"]}), 22)
         self.assertEqual({tool.name for tool in linear_graphql_surface().tools}, {item["mcpTool"] for item in selected["operations"]})
         tools = {tool.name: tool for tool in linear_graphql_surface().tools}
         for operation in selected["operations"]:

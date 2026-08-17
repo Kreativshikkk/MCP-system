@@ -43,7 +43,7 @@ be blocked are agents in other processes.
 
 The admin plane passes `allow_frozen=True` to write during a freeze. The MCP
 dispatcher never passes it, so there is no agent-reachable path to a frozen
-world — the same "absent from the surface" rule that keeps `update_pipeline`
+world — the same "absent from the surface" rule that keeps `complete_pipeline`
 admin-only.
 
 ## The mutation log is a watermark
@@ -107,7 +107,7 @@ On `BareGitRepository`:
 `gitlab set_commit_status` and `bitbucket create_commit_status` were on the
 agent surfaces. An engineer agent could post `state="success"` and forge a
 green build, which makes every downstream "did CI pass" judgement worthless.
-They are now withheld from the MCP surfaces, exactly like `update_pipeline`,
+They are now withheld from the MCP surfaces, exactly like `complete_pipeline`,
 and `tests/test_gitlab_contract.py` / `tests/test_bitbucket_contract.py` fail
 if they come back.
 

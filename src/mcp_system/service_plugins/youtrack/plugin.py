@@ -5,7 +5,7 @@ from ...plugins import PluginManifest
 from .schema import youtrack_migrations
 @dataclass(frozen=True,slots=True)
 class YouTrackPlugin:
- manifest:PluginManifest=PluginManifest(plugin_id="youtrack",version="0.1.0",display_name="YouTrack REST replica",capabilities=("users","projects","issues","comments","links","agiles","sprints","work_items","vcs_changes"),contract_source="https://www.jetbrains.com/help/youtrack/devportal/api-resources.html",api_version="current REST",contract_revision="sha256:32730aedd0ab94f6fefc4f55d21b8bf44145337e297280618217331b6bf0a639")
+ manifest:PluginManifest=PluginManifest(plugin_id="youtrack",version="0.1.0",display_name="YouTrack REST replica",capabilities=("users","projects","issues","tags","comments","links","agiles","sprints","work_items","vcs_changes"),contract_source="https://www.jetbrains.com/help/youtrack/devportal/api-resources.html",api_version="current REST",contract_revision="sha256:32730aedd0ab94f6fefc4f55d21b8bf44145337e297280618217331b6bf0a639")
  def migrations(self,k):return youtrack_migrations(k)
  def validate_bootstrap(self,c):
   if not c.get("users") or not any(x.get("admin") for x in c["users"]):raise ConfigurationError("youtrack bootstrap requires admin users")

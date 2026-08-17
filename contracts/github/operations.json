@@ -11,6 +11,10 @@
     {"method": "GET", "path": "/repos/{owner}/{repo}", "operation_id": "repos/get"},
     {"method": "PATCH", "path": "/repos/{owner}/{repo}", "operation_id": "repos/update"},
     {"method": "GET", "path": "/repos/{owner}/{repo}/branches", "operation_id": "repos/list-branches"},
+    {"method": "POST", "path": "/repos/{owner}/{repo}/git/refs", "operation_id": "git/create-ref"},
+    {"method": "GET", "path": "/repos/{owner}/{repo}/git/ref/{ref}", "operation_id": "git/get-ref"},
+    {"method": "GET", "path": "/repos/{owner}/{repo}/git/matching-refs/{ref}", "operation_id": "git/list-matching-refs"},
+    {"method": "PATCH", "path": "/repos/{owner}/{repo}/git/refs/{ref}", "operation_id": "git/update-ref"},
     {"method": "GET", "path": "/repos/{owner}/{repo}/commits", "operation_id": "repos/list-commits"},
     {"method": "GET", "path": "/repos/{owner}/{repo}/issues", "operation_id": "issues/list-for-repo"},
     {"method": "POST", "path": "/repos/{owner}/{repo}/issues", "operation_id": "issues/create"},
@@ -43,6 +47,7 @@
     {"method": "GET", "path": "/repos/{owner}/{repo}/actions/runs", "operation_id": "actions/list-workflow-runs-for-repo"},
     {"method": "GET", "path": "/repos/{owner}/{repo}/actions/runs/{run_id}/jobs", "operation_id": "actions/list-jobs-for-workflow-run"},
     {"method": "GET", "path": "/repos/{owner}/{repo}/actions/jobs/{job_id}", "operation_id": "actions/get-job-for-workflow-run"},
+    {"method": "POST", "path": "/repos/{owner}/{repo}/actions/workflows/{workflow_id}/dispatches", "operation_id": "actions/create-workflow-dispatch"},
     {"method": "GET", "path": "/repos/{owner}/{repo}/releases", "operation_id": "repos/list-releases"},
     {"method": "POST", "path": "/repos/{owner}/{repo}/releases", "operation_id": "repos/create-release"}
   ]

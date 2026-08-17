@@ -62,6 +62,19 @@ class GitHubOpenAPIContractTests(unittest.TestCase):
         )
         for operation in ("list_workflow_runs", "list_workflow_jobs", "get_workflow_job", "get_workflow_job_log"):
             self.assertTrue(tools[operation].read_only)
+        self.assertFalse(tools["dispatch_workflow"].read_only)
+        self.assertNotIn("complete_workflow_run", tools)
+
+    def test_git_refs_surface_matches_github_vocabulary(self) -> None:
+        tools = {tool.operation: tool for tool in github_rest_v3_surface().tools}
+        self.assertLessEqual(
+            {"create_ref", "get_ref", "list_matching_refs", "update_ref"},
+            set(tools),
+        )
+        self.assertEqual(
+            tools["update_ref"].input_schema["required"],
+            ["owner", "repo", "ref", "sha"],
+        )
 
     def test_release_selection_is_exposed(self) -> None:
         tools = {tool.operation: tool for tool in github_rest_v3_surface().tools}

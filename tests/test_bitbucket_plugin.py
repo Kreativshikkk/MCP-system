@@ -60,7 +60,7 @@ class BitbucketPluginTests(unittest.TestCase):
             lead = MCPDispatcher(system, environment.id, actor="lead")
             # 36 selected operations minus create_commit_status,
             # which is admin-only so an agent cannot forge a green build
-            self.assertEqual(len(engineer.list_tools()), 35)
+            self.assertEqual(len(engineer.list_tools()), 38)
 
             def call(dispatcher: MCPDispatcher, name: str, arguments: dict[str, object]) -> object:
                 response = dispatcher.call_tool(name, arguments)
@@ -69,6 +69,9 @@ class BitbucketPluginTests(unittest.TestCase):
 
             issue = call(engineer, "bitbucket_create_issue", {"workspace": "acme", "repo_slug": "product", "title": "Refresh race", "content": "Refresh can lose state", "assignee": "engineer"})
             base = call(engineer, "bitbucket_create_commit", {"workspace": "acme", "repo_slug": "product", "branch": "main", "message": "Initial commit", "files": {"app.py": "SAFE = False\n"}})
+            tag = call(engineer, "bitbucket_create_tag", {"workspace":"acme","repo_slug":"product","name":"v1.0.0","target":base["hash"]})
+            self.assertEqual(tag["target"]["hash"], base["hash"])
+            self.assertEqual(system.open_git_data_plane(environment.id, "bitbucket").repository(1).resolve_tag("v1.0.0"), base["hash"])
             head = call(engineer, "bitbucket_create_commit", {"workspace": "acme", "repo_slug": "product", "branch": "fix/refresh", "message": f"Issue #{issue['id']} fix refresh", "parents": [base["hash"]], "files": {"app.py": "SAFE = True\n"}})
             pull = call(engineer, "bitbucket_create_pull_request", {"workspace": "acme", "repo_slug": "product", "title": "Fix refresh race", "source_branch": "fix/refresh", "destination_branch": "main", "reviewers": ["qa"]})
             diff = call(qa, "bitbucket_get_pull_request_diff", {"workspace": "acme", "repo_slug": "product", "pull_request_id": pull["id"]})

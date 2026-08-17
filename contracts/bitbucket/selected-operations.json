@@ -1,6 +1,6 @@
 {
   "apiVersion": "2.0",
-  "operationCount": 36,
+  "operationCount": 39,
   "operations": [
     {
       "errorResponses": [
@@ -1924,6 +1924,21 @@
       ],
       "summary": "Create a build status for a commit",
       "workflow": "ci"
+    },
+    {
+      "errorResponses": ["400", "403", "404"], "localOperation": "list_tags", "mcpTool": "bitbucket_list_tags", "method": "GET", "operationId": null,
+      "parameters": [{"in":"path","name":"workspace","required":true,"schemaRef":null,"type":"string"},{"in":"path","name":"repo_slug","required":true,"schemaRef":null,"type":"string"}],
+      "path": "/repositories/{workspace}/{repo_slug}/refs/tags", "requiredParameters": ["repo_slug","workspace"], "responses": ["200","400","403","404"], "successResponses": ["200"], "summary": "List tags", "workflow": "tag"
+    },
+    {
+      "errorResponses": ["400", "403", "404"], "localOperation": "create_tag", "mcpTool": "bitbucket_create_tag", "method": "POST", "operationId": null,
+      "parameters": [{"in":"path","name":"workspace","required":true,"schemaRef":null,"type":"string"},{"in":"path","name":"repo_slug","required":true,"schemaRef":null,"type":"string"},{"in":"body","name":"_body","required":true,"schemaRef":"#/definitions/tag","type":null}],
+      "path": "/repositories/{workspace}/{repo_slug}/refs/tags", "requiredParameters": ["_body","repo_slug","workspace"], "responses": ["201","400","403","404"], "successResponses": ["201"], "summary": "Create a tag", "workflow": "tag"
+    },
+    {
+      "errorResponses": ["404"], "localOperation": "get_tag", "mcpTool": "bitbucket_get_tag", "method": "GET", "operationId": null,
+      "parameters": [{"in":"path","name":"workspace","required":true,"schemaRef":null,"type":"string"},{"in":"path","name":"repo_slug","required":true,"schemaRef":null,"type":"string"},{"in":"path","name":"name","required":true,"schemaRef":null,"type":"string"}],
+      "path": "/repositories/{workspace}/{repo_slug}/refs/tags/{name}", "requiredParameters": ["name","repo_slug","workspace"], "responses": ["200","404"], "successResponses": ["200"], "summary": "Get a tag", "workflow": "tag"
     }
   ],
   "provider": "Bitbucket Cloud",

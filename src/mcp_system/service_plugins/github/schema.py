@@ -6,10 +6,11 @@ from ...plugins import Migration
 
 
 def github_migrations(storage_kind: str) -> tuple[Migration, ...]:
+    refs = ("CREATE TABLE github_tags (repository_id BIGINT NOT NULL REFERENCES github_repositories(id), name TEXT NOT NULL, target_sha TEXT NOT NULL REFERENCES github_commits(sha), PRIMARY KEY(repository_id,name))",)
     if storage_kind == "postgresql":
-        return (Migration(1, _postgresql_schema()), Migration(2, ("ALTER TABLE github_workflow_jobs ADD COLUMN log TEXT NOT NULL DEFAULT ''",)))
+        return (Migration(1, _postgresql_schema()), Migration(2, ("ALTER TABLE github_workflow_jobs ADD COLUMN log TEXT NOT NULL DEFAULT ''",)), Migration(3, refs))
     if storage_kind == "sqlite":
-        return (Migration(1, _sqlite_schema()), Migration(2, ("ALTER TABLE github_workflow_jobs ADD COLUMN log TEXT NOT NULL DEFAULT ''",)))
+        return (Migration(1, _sqlite_schema()), Migration(2, ("ALTER TABLE github_workflow_jobs ADD COLUMN log TEXT NOT NULL DEFAULT ''",)), Migration(3, refs))
     raise ValueError(f"unsupported storage kind: {storage_kind}")
 
 

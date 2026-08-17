@@ -7,7 +7,7 @@ import sys
 import tempfile
 import unittest
 
-from mcp_system import MCPSystem, PluginRegistry
+from mcp_system import MCPSystem, PluginRegistry, builtin_plugin_registry
 from mcp_system.config import load_template_spec
 from mcp_system.mcp import MCPDispatcher
 from mcp_system.mcp.launcher import build_client_config
@@ -18,14 +18,7 @@ CONFIG = Path("configs/templates/software-company-default.toml")
 
 
 def registry() -> PluginRegistry:
-    result = PluginRegistry()
-    result.register(GitHubPlugin())
-    result.register(GitLabPlugin())
-    result.register(JiraPlugin())
-    result.register(BitbucketPlugin())
-    result.register(LinearPlugin())
-    result.register(YouTrackPlugin())
-    return result
+    return builtin_plugin_registry()
 
 
 def call(
@@ -128,7 +121,7 @@ class CompanyMCPTests(unittest.TestCase):
             tools = {tool["name"] for tool in responses[1]["result"]["tools"]}
             # 222 provider operations minus the two CI verdict writers
             # (gitlab set_commit_status, bitbucket create_commit_status)
-            self.assertEqual(len(tools), 220)
+            self.assertEqual(len(tools), 233)
             self.assertTrue(
                 {"github_get_authenticated_user", "gitlab_get_current_user", "jira_get_current_user", "bitbucket_get_current_user", "linear_get_viewer", "youtrack_get_current_user"}
                 <= tools
@@ -227,8 +220,8 @@ class CompanyMCPTests(unittest.TestCase):
                 "gitlab",
                 actor="director",
                 transport="ci-harness",
-                operation="update_pipeline",
-                arguments={"project": "acme/product", "pipeline_id": pipeline["id"], "status": "success"},
+                operation="complete_pipeline",
+                arguments={"project": "acme/product", "pipeline_id": pipeline["id"], "status": "success", "trace": "1 passed\n"},
             )
             merged = call(
                 self,
@@ -258,7 +251,7 @@ class CompanyMCPTests(unittest.TestCase):
                 {item.plugin_id for item in operations}, {"github", "gitlab", "jira"}
             )
             self.assertEqual(
-                next(item for item in operations if item.operation == "update_pipeline").transport,
+                next(item for item in operations if item.operation == "complete_pipeline").transport,
                 "ci-harness",
             )
 

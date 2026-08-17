@@ -55,13 +55,24 @@ Additional disposable scenarios:
 - `linear-core-live.json`: GraphQL issue/comment/update/archive lifecycle;
 - `youtrack-core-live.json`: issue/comment/update and command lifecycle.
 
+Provider-native extension scenarios:
+
+- `github-refs-actions-live.json`: create/get/list/update Git refs, lightweight
+  tag refs, workflow discovery and `workflow_dispatch`, with ref/workflow cleanup;
+- `bitbucket-tags-live.json`: create/get/list/delete repository tags;
+- `linear-labels-live.json`: create an issue label, replace an issue's complete
+  label set, then archive/delete the disposable objects;
+- `youtrack-tags-live.json`: create/list a tag and replace writable
+  `Issue.tags`, then delete the disposable tag.
+
 Bitbucket Pipelines is reported separately when the real repository cannot be
 provisioned by the vendor pipeline service. A provider `404` is not normalized
 into a passing replica result.
 
 Provider authentication flags:
 
-- GitHub, Linear and YouTrack: default `Authorization: Bearer ...`;
+- GitHub and YouTrack: default `Authorization: Bearer ...`;
+- Linear personal API key: `Authorization: <key>` via `--token-prefix ''`;
 - GitLab: `--token-header PRIVATE-TOKEN --token-prefix ''`;
 - Bitbucket OAuth token: default bearer header;
 - Jira API token: pass a base64 `email:token` value with

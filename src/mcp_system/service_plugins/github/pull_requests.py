@@ -7,6 +7,7 @@ from typing import Any, Mapping, Sequence
 
 from .operations import (
     GitHubConflict,
+    GitHubForbidden,
     GitHubNotFound,
     GitHubOperations,
     GitHubValidationError,
@@ -201,6 +202,77 @@ class GitHubPullRequestOperations(GitHubOperations):
         ).fetchall()
         return [self._branch_dict(row, repository_row) for row in rows]
 
+    def create_ref(self, owner: str, repository: str, *, ref: str,
+                   sha: str) -> dict[str, Any]:
+        repository_row = self._require_repository(owner, repository, minimum_permission="push")
+        commit = self._require_commit(repository_row["id"], sha)
+        kind, name = self._split_ref(ref)
+        if kind == "heads":
+            self.create_branch(owner, repository, name=name, head_sha=commit["sha"])
+        else:
+            if self.session.execute(
+                "SELECT 1 FROM github_tags WHERE repository_id=? AND name=?",
+                (repository_row["id"], name),
+            ).fetchone():
+                raise GitHubValidationError("Validation Failed: reference already exists")
+            if self.git_data_plane is None:
+                raise GitHubConflict("Git data plane is not configured")
+            try:
+                self.git_data_plane.repository(repository_row["id"]).create_tag(name, commit["sha"])
+            except Exception as exc:
+                raise GitHubValidationError("Validation Failed: reference already exists") from exc
+            self.session.execute(
+                "INSERT INTO github_tags(repository_id,name,target_sha) VALUES(?,?,?)",
+                (repository_row["id"], name, commit["sha"]),
+            )
+        return self._ref_dict(repository_row, kind, name, commit["sha"])
+
+    def get_ref(self, owner: str, repository: str, ref: str) -> dict[str, Any]:
+        repository_row = self._require_repository(owner, repository)
+        kind, name = self._split_ref(ref)
+        row = self._ref_row(repository_row["id"], kind, name)
+        if row is None:
+            raise GitHubNotFound("Not Found")
+        return self._ref_dict(repository_row, kind, name, row["sha"])
+
+    def list_matching_refs(self, owner: str, repository: str, ref: str) -> list[dict[str, Any]]:
+        repository_row = self._require_repository(owner, repository)
+        normalized = ref.removeprefix("refs/").strip("/")
+        results: list[dict[str, Any]] = []
+        for kind, table, sha_column in (("heads", "github_branches", "head_sha"), ("tags", "github_tags", "target_sha")):
+            prefix = f"{kind}/"
+            if normalized and not (normalized.startswith(prefix) or prefix.startswith(normalized)):
+                continue
+            name_prefix = normalized.removeprefix(prefix) if normalized.startswith(prefix) else ""
+            rows = self.session.execute(
+                f"SELECT name,{sha_column} AS sha FROM {table} WHERE repository_id=? AND name LIKE ? ORDER BY name",
+                (repository_row["id"], f"{name_prefix}%"),
+            ).fetchall()
+            results.extend(self._ref_dict(repository_row, kind, row["name"], row["sha"]) for row in rows)
+        return results
+
+    def update_ref(self, owner: str, repository: str, ref: str, *, sha: str,
+                   force: bool = False) -> dict[str, Any]:
+        repository_row = self._require_repository(owner, repository, minimum_permission="push")
+        kind, name = self._split_ref(ref)
+        if kind != "heads":
+            raise GitHubValidationError("Validation Failed: update_ref supports branch refs")
+        current = self._ref_row(repository_row["id"], kind, name)
+        if current is None:
+            raise GitHubNotFound("Reference does not exist")
+        commit = self._require_commit(repository_row["id"], sha)
+        if self.git_data_plane is None:
+            raise GitHubConflict("Git data plane is not configured")
+        git_repository = self.git_data_plane.repository(repository_row["id"])
+        if not force and not git_repository.is_ancestor(current["sha"], commit["sha"]):
+            raise GitHubValidationError("Update is not a fast forward")
+        git_repository.update_branch(name, commit["sha"], expected_old_sha=current["sha"])
+        self.session.execute(
+            "UPDATE github_branches SET head_sha=? WHERE repository_id=? AND name=? AND head_sha=?",
+            (commit["sha"], repository_row["id"], name, current["sha"]),
+        )
+        return self._ref_dict(repository_row, kind, name, commit["sha"])
+
     # Actions. Public methods mirror the selected REST read contract; mutation
     # hooks are simulation-only and intentionally absent from the MCP surface.
 
@@ -255,6 +327,40 @@ class GitHubPullRequestOperations(GitHubOperations):
                VALUES(?,?,?,?,NULL,?,?,?,?,?,?,?) RETURNING id""",
             (repository_row["id"], name, event, status, head_branch, branch["head_sha"], next_number, 1, self._require_actor()["id"], timestamp, timestamp),
         ).fetchone()["id"]
+        return self._workflow_run_dict(self._require_workflow_run(repository_row["id"], run_id), repository_row)
+
+    def dispatch_workflow(self, owner: str, repository: str, workflow_id: str,
+                          *, ref: str, inputs: Mapping[str, str] | None = None) -> None:
+        repository_row = self._require_repository(owner, repository, minimum_permission="push")
+        self._require_branch(repository_row["id"], ref)
+        if inputs is not None and not isinstance(inputs, Mapping):
+            raise GitHubValidationError("Validation Failed: inputs must be an object")
+        run = self.create_workflow_run(
+            owner, repository, name=str(workflow_id), event="workflow_dispatch",
+            head_branch=ref, status="pending",
+        )
+        self.create_workflow_job(owner, repository, run["id"], name=str(workflow_id), status="pending")
+        return None
+
+    def complete_workflow_run(self, owner: str, repository: str, run_id: int,
+                              *, conclusion: str, log: str) -> dict[str, Any]:
+        actor = self._require_actor()
+        if not actor["site_admin"]:
+            raise GitHubForbidden("Resource not accessible by integration")
+        repository_row = self._require_repository(owner, repository)
+        self._require_workflow_run(repository_row["id"], run_id)
+        allowed = {"success", "failure", "neutral", "cancelled", "skipped", "timed_out", "action_required", "stale"}
+        if conclusion not in allowed:
+            raise GitHubValidationError("Validation Failed: invalid workflow conclusion")
+        timestamp = self._now_value()
+        self.session.execute(
+            "UPDATE github_workflow_runs SET status='completed',conclusion=?,updated_at=? WHERE id=? AND repository_id=?",
+            (conclusion, timestamp, run_id, repository_row["id"]),
+        )
+        self.session.execute(
+            "UPDATE github_workflow_jobs SET status='completed',conclusion=?,started_at=COALESCE(started_at,?),completed_at=?,log=? WHERE run_id=?",
+            (conclusion, timestamp, timestamp, log, run_id),
+        )
         return self._workflow_run_dict(self._require_workflow_run(repository_row["id"], run_id), repository_row)
 
     def create_workflow_job(self, owner: str, repository: str, run_id: int, *, name: str,
@@ -316,6 +422,12 @@ class GitHubPullRequestOperations(GitHubOperations):
         if not tag_name.strip():
             raise GitHubValidationError("Validation Failed: tag_name is required")
         branch = self._require_branch(repository_row["id"], target_commitish)
+        tag = self.session.execute(
+            "SELECT target_sha FROM github_tags WHERE repository_id=? AND name=?",
+            (repository_row["id"], tag_name),
+        ).fetchone()
+        if tag is None:
+            self.create_ref(owner, repository, ref=f"refs/tags/{tag_name}", sha=branch["head_sha"])
         timestamp = self._now_value()
         try:
             release_id = self.session.execute(
@@ -328,6 +440,35 @@ class GitHubPullRequestOperations(GitHubOperations):
             raise GitHubValidationError("Validation Failed: release tag already exists") from exc
         row = self.session.execute("SELECT * FROM github_releases WHERE id=?", (release_id,)).fetchone()
         return self._release_dict(row, repository_row)
+
+    @staticmethod
+    def _split_ref(ref: str) -> tuple[str, str]:
+        normalized = ref.removeprefix("refs/").strip("/")
+        kind, separator, name = normalized.partition("/")
+        if separator != "/" or kind not in {"heads", "tags"} or not name:
+            raise GitHubValidationError("Validation Failed: ref must start with refs/heads/ or refs/tags/")
+        return kind, name
+
+    def _ref_row(self, repository_id: int, kind: str, name: str) -> Mapping[str, Any] | None:
+        if kind == "heads":
+            return self.session.execute(
+                "SELECT head_sha AS sha FROM github_branches WHERE repository_id=? AND name=?",
+                (repository_id, name),
+            ).fetchone()
+        return self.session.execute(
+            "SELECT target_sha AS sha FROM github_tags WHERE repository_id=? AND name=?",
+            (repository_id, name),
+        ).fetchone()
+
+    @staticmethod
+    def _ref_dict(repository: Mapping[str, Any], kind: str, name: str, sha: str) -> dict[str, Any]:
+        full_ref = f"refs/{kind}/{name}"
+        return {
+            "ref": full_ref,
+            "node_id": None,
+            "url": f"https://api.github.local/repos/{repository['full_name']}/git/{full_ref}",
+            "object": {"type": "commit", "sha": sha, "url": f"https://api.github.local/repos/{repository['full_name']}/git/commits/{sha}"},
+        }
 
     # Pull requests
 

@@ -74,7 +74,7 @@ class GitHubPlugin:
         for index, raw_user in enumerate(users):
             context = f"users[{index}]"
             user = _mapping(raw_user, context)
-            _require_keys(user, {"login", "name", "email", "role", "type"}, context)
+            _require_keys(user, {"login", "name", "email", "role", "type", "site_admin"}, context)
             login = _non_empty_string(user.get("login"), f"{context}.login")
             normalized = login.casefold()
             if normalized in user_logins:
@@ -152,7 +152,7 @@ class GitHubPlugin:
                     user.get("name"),
                     user.get("email"),
                     user.get("type", "User"),
-                    False,
+                    user.get("site_admin", False),
                     created_at,
                 )
             )

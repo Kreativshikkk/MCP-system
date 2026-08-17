@@ -14,7 +14,7 @@ from .schema import bitbucket_migrations
 class BitbucketPlugin:
     manifest: PluginManifest = PluginManifest(
         plugin_id="bitbucket", version="0.1.0", display_name="Bitbucket Cloud API replica",
-        capabilities=("users", "workspaces", "repositories", "git_data_plane", "commits", "branches", "issues", "comments", "pull_requests", "reviews", "pipelines", "commit_statuses"),
+        capabilities=("users", "workspaces", "repositories", "git_data_plane", "commits", "branches", "tags", "issues", "comments", "pull_requests", "reviews", "pipelines", "commit_statuses"),
         contract_source="https://api.bitbucket.org/swagger.json",
         api_version="2.0",
         contract_revision="sha256:dc11be99fe57eb991194de80cdfe75e425cd0f590e6cf83e9dc3d2a22d4943de",

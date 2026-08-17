@@ -20,17 +20,17 @@ class BitbucketContractTests(unittest.TestCase):
         selected = json.loads(selected_path.read_text())
         self.assertEqual(selected["apiVersion"], "2.0")
         self.assertEqual(selected["sourceSha256"], provenance["sourceSha256"])
-        self.assertEqual(selected["operationCount"], 36)
+        self.assertEqual(selected["operationCount"], 39)
         self.assertEqual(
             {item["workflow"] for item in selected["operations"]},
-            {"identity", "membership", "repository", "source", "branch", "ticket", "review", "ci"},
+            {"identity", "membership", "repository", "source", "branch", "tag", "ticket", "review", "ci"},
         )
         self.assertEqual(
-            len({item["mcpTool"] for item in selected["operations"]}), 36
+            len({item["mcpTool"] for item in selected["operations"]}), 39
         )
         self.assertEqual(
             hashlib.sha256(selected_path.read_bytes()).hexdigest(),
-            "5a513a4a776112741f3e60657920f96ac817ebe48a0a27d46baaef3ade2a4888",
+            "19e1ac39581293c6a9d66dd284a1252c2a3654082b887e8fd7470eff8821786d",
         )
         surface = bitbucket_cloud_v2_surface()
         self.assertEqual(surface.plugin_id, BitbucketPlugin().manifest.plugin_id)

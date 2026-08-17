@@ -60,6 +60,7 @@ class GitLabOpenAPIContractTests(unittest.TestCase):
         )
         self.assertNotIn("create_commit", tools)
         self.assertNotIn("update_pipeline", tools)
+        self.assertNotIn("complete_pipeline", tools)
         # an agent that can write a CI verdict can forge a green build
         self.assertNotIn("set_commit_status", tools)
         self.assertNotIn("set_branch_head", tools)

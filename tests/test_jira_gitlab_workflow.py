@@ -33,7 +33,7 @@ class JiraGitLabWorkflowTests(unittest.TestCase):
             merge_request = system.invoke_service_operation(environment.id, "gitlab", actor="engineer", transport="mcp", operation="create_merge_request", arguments={"project": "acme/product", "title": f"{ticket['key']} Fix refresh race", "source_branch": f"fix/{ticket['key'].lower()}", "target_branch": "main", "reviewers": ["qa"]})
             system.invoke_service_operation(environment.id, "gitlab", actor="qa", transport="mcp", operation="approve_merge_request", arguments={"project": "acme/product", "merge_request_iid": merge_request["iid"]})
             pipeline = system.invoke_service_operation(environment.id, "gitlab", actor="engineer", transport="mcp", operation="create_pipeline", arguments={"project": "acme/product", "ref": f"fix/{ticket['key'].lower()}"})
-            system.invoke_service_operation(environment.id, "gitlab", actor="engineer", transport="mcp", operation="update_pipeline", arguments={"project": "acme/product", "pipeline_id": pipeline["id"], "status": "success"})
+            system.invoke_service_operation(environment.id, "gitlab", actor="director", transport="ci-harness", operation="complete_pipeline", arguments={"project": "acme/product", "pipeline_id": pipeline["id"], "status": "success", "trace": "1 passed\n"})
             system.invoke_service_operation(environment.id, "gitlab", actor="lead", transport="mcp", operation="merge_merge_request", arguments={"project": "acme/product", "merge_request_iid": merge_request["iid"], "sha": head["sha"]})
             done = system.invoke_service_operation(environment.id, "jira", actor="lead", transport="mcp", operation="transition_issue", arguments={"issue_id_or_key": ticket["key"], "transition": {"id": "31"}})
 

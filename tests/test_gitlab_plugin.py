@@ -50,7 +50,11 @@ class GitLabPluginTests(unittest.TestCase):
         approved = self.call("qa", "approve_merge_request", project="acme/product", merge_request_iid=merge_request["iid"])
         self.assertTrue(approved["approved"])
         pipeline = self.call("engineer", "create_pipeline", project="acme/product", ref="fix/timeout")
-        pipeline = self.call("engineer", "update_pipeline", project="acme/product", pipeline_id=pipeline["id"], status="success")
+        pipeline = self.call("director", "complete_pipeline", project="acme/product", pipeline_id=pipeline["id"], status="success", trace="1 passed\n")
+        jobs = self.call("engineer", "list_pipeline_jobs", project="acme/product", pipeline_id=pipeline["id"])
+        self.assertEqual(jobs[0]["status"], "success")
+        self.assertIsNotNone(jobs[0]["finished_at"])
+        self.assertEqual(self.call("engineer", "get_job_trace", project="acme/product", job_id=jobs[0]["id"]), "1 passed\n")
 
         response = InspectorHTTPRouter(self.system).dispatch(HTTPRequest("GET", f"/api/environments/{self.environment.id}/workbench"))
         self.assertEqual(response.status, 200)
@@ -82,6 +86,21 @@ class GitLabPluginTests(unittest.TestCase):
         operation = self.system.list_operations(self.environment.id)[-1]
         self.assertEqual(operation.transport, "mcp")
         self.assertEqual(operation.operation, "create_issue")
+
+    def test_complete_pipeline_is_admin_only_and_requires_terminal_status(self) -> None:
+        base = self.call("engineer", "create_commit", project="acme/product", message="Base", author="engineer", files={"app.py": "OK = True\n"})
+        self.call("engineer", "create_branch", project="acme/product", branch="main", ref=base["sha"])
+        pipeline = self.call("engineer", "create_pipeline", project="acme/product", ref="main")
+
+        with self.assertRaisesRegex(Exception, "403 Forbidden"):
+            self.call("engineer", "complete_pipeline", project="acme/product", pipeline_id=pipeline["id"], status="success", trace="forged")
+        with self.assertRaisesRegex(Exception, "terminal pipeline status"):
+            self.call("director", "complete_pipeline", project="acme/product", pipeline_id=pipeline["id"], status="running", trace="still running")
+
+        self.assertEqual(self.call("engineer", "get_pipeline", project="acme/product", pipeline_id=pipeline["id"])["status"], "pending")
+        jobs = self.call("engineer", "list_pipeline_jobs", project="acme/product", pipeline_id=pipeline["id"])
+        self.assertEqual(jobs[0]["status"], "pending")
+        self.assertEqual(self.call("engineer", "get_job_trace", project="acme/product", job_id=jobs[0]["id"]), "")
 
     def test_public_commit_api_initializes_an_empty_repository(self) -> None:
         dispatcher = MCPDispatcher(self.system, self.environment.id, actor="engineer")

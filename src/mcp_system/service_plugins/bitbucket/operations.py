@@ -151,6 +151,45 @@ class BitbucketOperations:
         self.session.execute("DELETE FROM bitbucket_branches WHERE repository_id=? AND name=?", (repo["id"], name))
         self._git(repo["id"]).delete_branch(name)
 
+    def create_tag(self, workspace: str, repo_slug: str, *, name: str,
+                   target: str) -> dict[str, Any]:
+        repo = self._require_repository(workspace, repo_slug, "write")
+        if not name.strip():
+            raise BitbucketValidationError("tag name is required")
+        sha = self._resolve(repo["id"], target)
+        if self.session.execute(
+            "SELECT 1 FROM bitbucket_tags WHERE repository_id=? AND name=?",
+            (repo["id"], name),
+        ).fetchone():
+            raise BitbucketConflict("tag already exists")
+        try:
+            self._git(repo["id"]).create_tag(name, sha)
+            self.session.execute(
+                "INSERT INTO bitbucket_tags(repository_id,name,target_hash) VALUES(?,?,?)",
+                (repo["id"], name, sha),
+            )
+        except GitStorageError as exc:
+            raise BitbucketValidationError(str(exc)) from exc
+        return self.get_tag(workspace, repo_slug, name)
+
+    def get_tag(self, workspace: str, repo_slug: str, name: str) -> dict[str, Any]:
+        repo = self._require_repository(workspace, repo_slug)
+        row = self.session.execute(
+            "SELECT * FROM bitbucket_tags WHERE repository_id=? AND name=?",
+            (repo["id"], name),
+        ).fetchone()
+        if row is None:
+            raise BitbucketNotFound("tag not found")
+        return self._tag(row)
+
+    def list_tags(self, workspace: str, repo_slug: str) -> dict[str, Any]:
+        repo = self._require_repository(workspace, repo_slug)
+        rows = self.session.execute(
+            "SELECT * FROM bitbucket_tags WHERE repository_id=? ORDER BY name",
+            (repo["id"],),
+        ).fetchall()
+        return self._page([self._tag(row) for row in rows])
+
     def list_issues(self, workspace: str, repo_slug: str, *, state: str | None = None) -> dict[str, Any]:
         repo = self._require_repository(workspace, repo_slug)
         rows = self.session.execute("SELECT * FROM bitbucket_issues WHERE repository_id=? ORDER BY local_id DESC", (repo["id"],)).fetchall()
@@ -357,7 +396,8 @@ class BitbucketOperations:
         return row
     def _resolve(self, repo_id: int, ref: str) -> str:
         branch = self.session.execute("SELECT target_hash FROM bitbucket_branches WHERE repository_id=? AND name=?", (repo_id, ref)).fetchone()
-        sha = branch["target_hash"] if branch else ref; self._require_commit(repo_id, sha); return sha
+        tag = self.session.execute("SELECT target_hash FROM bitbucket_tags WHERE repository_id=? AND name=?", (repo_id, ref)).fetchone()
+        sha = branch["target_hash"] if branch else tag["target_hash"] if tag else ref; self._require_commit(repo_id, sha); return sha
     def _git(self, repo_id: int):
         if self.git_data_plane is None: raise BitbucketConflict("Git data plane is not configured")
         return self.git_data_plane.repository(repo_id)
@@ -374,6 +414,7 @@ class BitbucketOperations:
         author = self.session.execute("SELECT * FROM bitbucket_users WHERE id=?", (row["author_id"],)).fetchone(); parents = self.session.execute("SELECT parent_hash FROM bitbucket_commit_parents WHERE commit_hash=? ORDER BY position", (row["hash"],)).fetchall()
         return {"type": "commit", "hash": row["hash"], "message": row["message"], "author": {"user": self._user(author)}, "parents": [{"hash": item["parent_hash"]} for item in parents], "date": str(row["committed_at"])}
     def _branch(self, row: Mapping[str, Any]) -> dict[str, Any]: return {"type": "branch", "name": row["name"], "target": {"hash": row["target_hash"]}}
+    def _tag(self, row: Mapping[str, Any]) -> dict[str, Any]: return {"type": "tag", "name": row["name"], "target": {"type": "commit", "hash": row["target_hash"]}}
     def _issue(self, row: Mapping[str, Any]) -> dict[str, Any]: return {"type": "issue", "id": row["local_id"], "title": row["title"], "content": {"raw": row["content"] or ""}, "state": row["state"], "kind": row["kind"], "priority": row["priority"], "reporter": self._user(self.session.execute("SELECT * FROM bitbucket_users WHERE id=?", (row["reporter_id"],)).fetchone()), "assignee": self._user(self.session.execute("SELECT * FROM bitbucket_users WHERE id=?", (row["assignee_id"],)).fetchone()) if row["assignee_id"] else None, "created_on": str(row["created_at"]), "updated_on": str(row["updated_at"])}
     def _pull_request(self, row: Mapping[str, Any]) -> dict[str, Any]:
         author = self.session.execute("SELECT * FROM bitbucket_users WHERE id=?", (row["author_id"],)).fetchone(); reviewers = self.session.execute("SELECT u.*,r.state review_state FROM bitbucket_pull_request_reviewers r JOIN bitbucket_users u ON u.id=r.user_id WHERE r.pull_request_id=? ORDER BY u.id", (row["id"],)).fetchall()

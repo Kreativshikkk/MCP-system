@@ -16,6 +16,23 @@ class LinearOperations:
     def list_teams(self)->dict[str,Any]: return self._connection([self._team(x) for x in self.session.execute("SELECT * FROM linear_teams ORDER BY key").fetchall()])
     def list_workflow_states(self,team_id:str)->dict[str,Any]: self._team_row(team_id); return self._connection([self._state(x) for x in self.session.execute("SELECT * FROM linear_workflow_states WHERE team_id=? ORDER BY position",(team_id,)).fetchall()])
     def list_issue_labels(self,team_id:str)->dict[str,Any]: self._team_row(team_id); return self._connection([dict(x) for x in self.session.execute("SELECT * FROM linear_labels WHERE team_id=? ORDER BY name",(team_id,)).fetchall()])
+    def create_issue_label(self,team_id:str,*,name:str,color:str)->dict[str,Any]:
+        self._team_row(team_id);self._write()
+        if not name.strip() or not color.strip():raise LinearError("name and color are required")
+        id=str(uuid4())
+        try:self.session.execute("INSERT INTO linear_labels(id,team_id,name,color) VALUES(?,?,?,?)",(id,team_id,name,color))
+        except Exception as exc:raise LinearError("issue label already exists") from exc
+        return {"success":True,"issueLabel":dict(self.session.execute("SELECT * FROM linear_labels WHERE id=?",(id,)).fetchone())}
+
+    def set_issue_labels(self,issue_id:str,*,label_ids:list[str])->dict[str,Any]:
+        issue=self._issue_row(issue_id);self._write()
+        unique=list(dict.fromkeys(label_ids))
+        for label_id in unique:
+            if self.session.execute("SELECT 1 FROM linear_labels WHERE id=? AND team_id=?",(label_id,issue["team_id"])).fetchone() is None:raise LinearNotFound("issue label not found")
+        self.session.execute("DELETE FROM linear_issue_labels WHERE issue_id=?",(issue["id"],))
+        for label_id in unique:self.session.execute("INSERT INTO linear_issue_labels(issue_id,label_id) VALUES(?,?)",(issue["id"],label_id))
+        self.session.execute("UPDATE linear_issues SET updated_at=? WHERE id=?",(self._time(),issue["id"]))
+        return {"success":True,"issue":self.get_issue(issue_id)}
     def list_projects(self,team_id:str|None=None)->dict[str,Any]:
         rows=self.session.execute("SELECT * FROM linear_projects"+(" WHERE team_id=?" if team_id else "")+" ORDER BY name",(team_id,) if team_id else ()).fetchall(); return self._connection([self._project(x) for x in rows])
     def get_project(self,id:str)->dict[str,Any]: return self._project(self._project_row(id))

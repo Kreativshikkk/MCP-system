@@ -136,6 +136,9 @@ def run_dual_scenario(
                 ),
             )
             if real_response.status not in allowed:
+                if attempt + 1 < attempts:
+                    time.sleep(interval)
+                    continue
                 break
             try:
                 for expression in step.get("capture", {}).get("real", {}).values():
@@ -145,15 +148,15 @@ def run_dual_scenario(
                 if attempt + 1 == attempts:
                     raise
                 time.sleep(interval)
-        replica_call = _render(step["replica"], replica_context)
-        replica_response = replica_target.execute(
-            replica_call["operation"], replica_call.get("arguments", {})
-        )
         if real_response.status not in allowed:
             raise AssertionError(
                 f"{step['id']}: unexpected real status {real_response.status}: "
                 f"{real_response.body!r}"
             )
+        replica_call = _render(step["replica"], replica_context)
+        replica_response = replica_target.execute(
+            replica_call["operation"], replica_call.get("arguments", {})
+        )
         expected_local = step.get("expect", {}).get("replica_status", 200)
         if replica_response.status != expected_local:
             raise AssertionError(

@@ -34,6 +34,23 @@ class YouTrackOperations:
  def list_work_items(self,issue_id):i=self._issue_row(issue_id);return [dict(x) for x in self.s.execute("SELECT * FROM yt_work_items WHERE issue_id=? ORDER BY id",(i["id"],)).fetchall()]
  def create_work_item(self,issue_id,duration_minutes,*,text=None):i=self._issue_row(issue_id);r=self.s.execute("INSERT INTO yt_work_items(issue_id,author_id,duration_minutes,text,created_at) VALUES(?,?,?,?,?) RETURNING id",(i["id"],self._actor()["id"],duration_minutes,text,self._time())).fetchone();return dict(self.s.execute("SELECT * FROM yt_work_items WHERE id=?",(r["id"],)).fetchone())
  def list_vcs_changes(self,issue_id):i=self._issue_row(issue_id);return [dict(x) for x in self.s.execute("SELECT * FROM yt_vcs_changes WHERE issue_id=? ORDER BY id",(i["id"],)).fetchall()]
+ def list_tags(self,project_id):
+  p=self._project_row(project_id);return [self._tag(x) for x in self.s.execute("SELECT * FROM yt_tags WHERE project_id=? ORDER BY name",(p["id"],)).fetchall()]
+ def create_tag(self,project_id,*,name):
+  p=self._project_row(project_id)
+  if not name.strip():raise YTError("tag name is required")
+  id=str(uuid4())
+  try:self.s.execute("INSERT INTO yt_tags(id,project_id,name) VALUES(?,?,?)",(id,p["id"],name))
+  except Exception as exc:raise YTError("tag already exists") from exc
+  return self._tag(self.s.execute("SELECT * FROM yt_tags WHERE id=?",(id,)).fetchone())
+ def set_issue_tags(self,issue_id,*,tag_ids):
+  issue=self._issue_row(issue_id);unique=list(dict.fromkeys(tag_ids))
+  for tag_id in unique:
+   if self.s.execute("SELECT 1 FROM yt_tags WHERE id=? AND project_id=?",(tag_id,issue["project_id"])).fetchone() is None:raise YTNotFound("tag not found")
+  self.s.execute("DELETE FROM yt_issue_tags WHERE issue_id=?",(issue["id"],))
+  for tag_id in unique:self.s.execute("INSERT INTO yt_issue_tags(issue_id,tag_id) VALUES(?,?)",(issue["id"],tag_id))
+  self.s.execute("UPDATE yt_issues SET updated_at=? WHERE id=?",(self._time(),issue["id"]))
+  return self.get_issue(issue_id)
  def _actor(self):return self._user_row(self.actor)
  def _user_row(self,v):
   r=self.s.execute("SELECT * FROM yt_users WHERE id=? OR login=?",(v,v)).fetchone()
@@ -57,7 +74,8 @@ class YouTrackOperations:
   return r
  def _user(self,x):return {"id":x["id"],"login":x["login"],"fullName":x["full_name"],"email":x["email"],"ringId":x["id"]}
  def _project(self,x):return {"id":x["id"],"shortName":x["short_name"],"name":x["name"]}
- def _issue(self,x):return {"id":x["id"],"idReadable":x["id_readable"],"summary":x["summary"],"description":x["description"],"state":x["state"],"priority":x["priority"],"reporter":self._user(self._user_row(x["reporter_id"])),"assignee":self._user(self._user_row(x["assignee_id"])) if x["assignee_id"] else None,"created":str(x["created_at"]),"updated":str(x["updated_at"])}
+ def _issue(self,x):return {"id":x["id"],"idReadable":x["id_readable"],"summary":x["summary"],"description":x["description"],"state":x["state"],"priority":x["priority"],"reporter":self._user(self._user_row(x["reporter_id"])),"assignee":self._user(self._user_row(x["assignee_id"])) if x["assignee_id"] else None,"tags":[self._tag(t) for t in self.s.execute("SELECT t.* FROM yt_issue_tags it JOIN yt_tags t ON t.id=it.tag_id WHERE it.issue_id=? ORDER BY t.name",(x["id"],)).fetchall()],"created":str(x["created_at"]),"updated":str(x["updated_at"])}
  def _comment(self,x):return {"id":str(x["id"]),"text":x["text"],"author":self._user(self._user_row(x["author_id"])),"created":str(x["created_at"])}
  def _sprint(self,x):return {"id":x["id"],"name":x["name"],"goal":x["goal"],"archived":bool(x["archived"]),"start":str(x["start_at"]) if x["start_at"] else None,"finish":str(x["finish_at"]) if x["finish_at"] else None}
+ def _tag(self,x):return {"id":x["id"],"name":x["name"],"$type":"IssueTag"}
  def _time(self):return self.now().isoformat()

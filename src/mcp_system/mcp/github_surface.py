@@ -47,6 +47,10 @@ def github_rest_v3_surface() -> SurfaceSpec:
             ("owner", "repo", "name", "head_sha"), False,
         ),
         _tool("github_list_branches", "list_branches", "List repository branches.", OWNER_REPO, ("owner", "repo"), True),
+        _tool("github_create_ref", "create_ref", "Create a GitHub Git reference.", {**OWNER_REPO, "ref": STRING, "sha": STRING}, ("owner", "repo", "ref", "sha"), False),
+        _tool("github_get_ref", "get_ref", "Get a GitHub Git reference.", {**OWNER_REPO, "ref": STRING}, ("owner", "repo", "ref"), True),
+        _tool("github_list_matching_refs", "list_matching_refs", "List GitHub Git references matching a prefix.", {**OWNER_REPO, "ref": STRING}, ("owner", "repo", "ref"), True),
+        _tool("github_update_ref", "update_ref", "Update a GitHub Git reference with fast-forward protection.", {**OWNER_REPO, "ref": STRING, "sha": STRING, "force": BOOLEAN}, ("owner", "repo", "ref", "sha"), False),
         _tool("github_list_labels", "list_labels", "List repository issue labels.", OWNER_REPO, ("owner", "repo"), True),
         _tool(
             "github_create_label", "create_label", "Create a repository issue label.",
@@ -142,6 +146,11 @@ def github_rest_v3_surface() -> SurfaceSpec:
         _tool("github_list_workflow_jobs", "list_workflow_jobs", "List jobs for a GitHub Actions workflow run.", {**OWNER_REPO, "run_id": INTEGER}, ("owner", "repo", "run_id"), True),
         _tool("github_get_workflow_job", "get_workflow_job", "Get a GitHub Actions workflow job.", {**OWNER_REPO, "job_id": INTEGER}, ("owner", "repo", "job_id"), True),
         _tool("github_get_workflow_job_log", "get_workflow_job_log", "Read the captured log for a GitHub Actions workflow job.", {**OWNER_REPO, "job_id": INTEGER}, ("owner", "repo", "job_id"), True),
+        _tool(
+            "github_dispatch_workflow", "dispatch_workflow", "Create a GitHub Actions workflow dispatch event.",
+            {**OWNER_REPO, "workflow_id": STRING, "ref": STRING, "inputs": {"type": "object", "additionalProperties": {"type": "string"}}},
+            ("owner", "repo", "workflow_id", "ref"), False,
+        ),
         _tool("github_list_releases", "list_releases", "List GitHub repository releases.", OWNER_REPO, ("owner", "repo"), True),
         _tool(
             "github_create_release", "create_release", "Create a GitHub repository release.",

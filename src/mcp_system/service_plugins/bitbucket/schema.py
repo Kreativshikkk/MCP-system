@@ -29,4 +29,6 @@ def bitbucket_migrations(storage_kind: str) -> tuple[Migration, ...]:
         f"""CREATE TABLE bitbucket_commit_statuses (id {identity} PRIMARY KEY, repository_id BIGINT NOT NULL REFERENCES bitbucket_repositories(id), commit_hash TEXT NOT NULL REFERENCES bitbucket_commits(hash), key TEXT NOT NULL, name TEXT NOT NULL, state TEXT NOT NULL, url TEXT, description TEXT, created_at {timestamp} NOT NULL, UNIQUE(repository_id,commit_hash,key))""",
         "CREATE INDEX bitbucket_issues_repo_state ON bitbucket_issues(repository_id,state,updated_at)",
         "CREATE INDEX bitbucket_prs_repo_state ON bitbucket_pull_requests(repository_id,state,updated_at)",
-    )),)
+    )), Migration(2, (
+        "CREATE TABLE bitbucket_tags (repository_id BIGINT NOT NULL REFERENCES bitbucket_repositories(id), name TEXT NOT NULL, target_hash TEXT NOT NULL REFERENCES bitbucket_commits(hash), PRIMARY KEY(repository_id,name))",
+    )))

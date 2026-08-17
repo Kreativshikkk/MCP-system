@@ -110,6 +110,16 @@ class BareGitRepository:
             arguments.append(expected_old_sha)
         self._run(*arguments)
 
+    def is_ancestor(self, ancestor_sha: str, descendant_sha: str) -> bool:
+        self.require_object(ancestor_sha, "commit")
+        self.require_object(descendant_sha, "commit")
+        result = self._run_process(
+            "merge-base", "--is-ancestor", ancestor_sha, descendant_sha, check=False
+        )
+        if result.returncode not in {0, 1}:
+            self._raise_process_error(result)
+        return result.returncode == 0
+
     def resolve_branch(self, name: str) -> str | None:
         self.initialize()
         result = self._run_process(
@@ -225,6 +235,12 @@ class BareGitRepository:
         to every git-level read, including the snapshot exporter."""
         self.require_object(sha, "commit")
         self._run("update-ref", f"refs/tags/{name}", sha)
+
+    def create_tag(self, name: str, sha: str) -> None:
+        self.require_object(sha, "commit")
+        if self.resolve_tag(name) is not None:
+            raise GitStorageError(f"tag {name!r} already exists")
+        self._run("update-ref", f"refs/tags/{name}", sha, "0" * 40)
 
     def resolve_tag(self, name: str) -> str | None:
         result = self._run_process(
@@ -459,6 +475,9 @@ class TransactionalBareGitRepository:
             name, sha, expected_old_sha=expected_old_sha
         )
 
+    def is_ancestor(self, ancestor_sha: str, descendant_sha: str) -> bool:
+        return self.repository.is_ancestor(ancestor_sha, descendant_sha)
+
     def delete_branch(self, name: str) -> None:
         self.transaction.remember_ref(
             self.repository_id, f"refs/heads/{name}", self.repository
@@ -470,6 +489,12 @@ class TransactionalBareGitRepository:
             self.repository_id, f"refs/tags/{name}", self.repository
         )
         self.repository.update_tag(name, sha)
+
+    def create_tag(self, name: str, sha: str) -> None:
+        self.transaction.remember_ref(
+            self.repository_id, f"refs/tags/{name}", self.repository
+        )
+        self.repository.create_tag(name, sha)
 
     def resolve_tag(self, name: str) -> str | None:
         return self.repository.resolve_tag(name)

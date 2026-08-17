@@ -17,6 +17,7 @@ from .models import (
     TemplateStatus,
 )
 from .plugins import Migration, PluginManifest, PluginRegistry, ServicePlugin
+from .service_plugins import builtin_plugin_registry, builtin_plugins
 
 __all__ = [
     "Environment",
@@ -40,4 +41,6 @@ __all__ = [
     "Template",
     "TemplateSpec",
     "TemplateStatus",
+    "builtin_plugin_registry",
+    "builtin_plugins",
 ]

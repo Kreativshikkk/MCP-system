@@ -6,6 +6,7 @@ def linear_graphql_surface()->SurfaceSpec:
     specs=(
       ("get_viewer",{},(),True),("list_users",{},(),True),("list_teams",{},(),True),
       ("list_workflow_states",{"teamId":S},("teamId",),True),("list_issue_labels",{"teamId":S},("teamId",),True),
+      ("create_issue_label",{"teamId":S,"name":S,"color":S},("teamId","name","color"),False),("set_issue_labels",{"issueId":S,"labelIds":SS},("issueId","labelIds"),False),
       ("list_projects",{"teamId":S},(),True),("get_project",{"id":S},("id",),True),
       ("create_project",{"teamId":S,"name":S,"description":S,"leadId":S},("teamId","name"),False),("update_project",{"id":S,"name":S,"description":S,"state":S},("id",),False),
       ("list_cycles",{"teamId":S},("teamId",),True),("create_cycle",{"teamId":S,"name":S,"description":S,"startsAt":S,"endsAt":S},("teamId","name"),False),("update_cycle",{"id":S,"name":S,"description":S,"completedAt":S},("id",),False),

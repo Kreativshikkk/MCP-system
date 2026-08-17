@@ -132,6 +132,38 @@ class DifferentialScenarioTests(unittest.TestCase):
         self.assertTrue(compare_runs(real, replica)["passed"])
         self.assertEqual(len(local_target.calls), 1)
 
+    def test_dual_scenario_polls_transient_real_status(self) -> None:
+        scenario = {"steps": [{
+            "id": "eventual-status",
+            "real": {"method": "GET", "path": "/workflow"},
+            "replica": {"operation": "get_workflow"},
+            "expect": {"real_status": 200},
+            "poll": {"attempts": 2, "interval_seconds": 0},
+            "compare": {"body": False},
+        }]}
+        real_target = FakeTarget([
+            CapturedResponse(404, {}, {"message": "Not Found"}),
+            CapturedResponse(200, {}, {"id": 9}),
+        ])
+        local_target = FakeOperationTarget([CapturedResponse(200, {}, {"id": 1})])
+        real, replica = run_dual_scenario(scenario, real_target, local_target)
+        self.assertTrue(compare_runs(real, replica)["passed"])
+        self.assertEqual(len(real_target.requests), 2)
+        self.assertEqual(len(local_target.calls), 1)
+
+    def test_failed_real_status_never_runs_replica_mutation(self) -> None:
+        scenario = {"steps": [{
+            "id": "rejected",
+            "real": {"method": "POST", "path": "/labels"},
+            "replica": {"operation": "create_label"},
+            "expect": {"real_status": 201},
+        }]}
+        real_target = FakeTarget([CapturedResponse(401, {}, {"message": "Unauthorized"})])
+        local_target = FakeOperationTarget([CapturedResponse(200, {}, {"id": 1})])
+        with self.assertRaisesRegex(AssertionError, "unexpected real status 401"):
+            run_dual_scenario(scenario, real_target, local_target)
+        self.assertEqual(local_target.calls, [])
+
 
 if __name__ == "__main__":
     unittest.main()

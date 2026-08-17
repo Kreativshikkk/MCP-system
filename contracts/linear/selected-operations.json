@@ -8,6 +8,8 @@
     {"field":"teams","kind":"query","workflow":"team","localOperation":"list_teams","mcpTool":"linear_list_teams","required":[]},
     {"field":"workflowStates","kind":"query","workflow":"team","localOperation":"list_workflow_states","mcpTool":"linear_list_workflow_states","required":["teamId"]},
     {"field":"issueLabels","kind":"query","workflow":"triage","localOperation":"list_issue_labels","mcpTool":"linear_list_issue_labels","required":["teamId"]},
+    {"field":"issueLabelCreate","kind":"mutation","workflow":"triage","localOperation":"create_issue_label","mcpTool":"linear_create_issue_label","required":["teamId","name","color"]},
+    {"field":"issueUpdate","kind":"mutation","workflow":"triage","localOperation":"set_issue_labels","mcpTool":"linear_set_issue_labels","required":["issueId","labelIds"],"normalization":"issueId maps to GraphQL id; labelIds maps to IssueUpdateInput.labelIds"},
     {"field":"projects","kind":"query","workflow":"project","localOperation":"list_projects","mcpTool":"linear_list_projects","required":[]},
     {"field":"project","kind":"query","workflow":"project","localOperation":"get_project","mcpTool":"linear_get_project","required":["id"]},
     {"field":"projectCreate","kind":"mutation","workflow":"project","localOperation":"create_project","mcpTool":"linear_create_project","required":["teamId","name"]},
