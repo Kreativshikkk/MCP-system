@@ -74,7 +74,9 @@ async function loadOperations() {
   elements.refreshButton.disabled = true;
   try {
     const id = encodeURIComponent(state.selectedEnvironmentId);
-    const payload = await fetchJSON(`/api/environments/${id}/operations?limit=500`);
+    const payload = await fetchJSON(
+      `/api/environments/${id}/operations?limit=500&latest=true`,
+    );
     state.operations = payload.operations;
     state.truncated = payload.truncated;
     renderEnvironment(payload.environment);
