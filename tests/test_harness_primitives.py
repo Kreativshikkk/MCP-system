@@ -12,7 +12,7 @@ import unittest
 from mcp_system import MCPSystem, PluginRegistry, TemplateSpec
 from mcp_system.config import load_template_spec
 from mcp_system.errors import EnvironmentFrozenError, EnvironmentNotFoundError
-from mcp_system.git_storage import BareGitRepository, GitStorageError
+from mcp_system.git_storage import EMPTY_TREE_SHA, BareGitRepository, GitStorageError
 from mcp_system.service_plugins import GitLabPlugin, JiraPlugin
 
 
@@ -322,6 +322,28 @@ class GitObjectTransferTest(unittest.TestCase):
         self.assertEqual(target.read_tree_contents("main")["binary.dat"],
                          bytes(range(256)) * 4 + b"\n\x00\n")
         self.assertEqual(target.read_tree_contents("main")["empty.dat"], b"")
+
+    def test_round_trip_keeps_the_empty_tree(self) -> None:
+        # git reports the empty tree as present without storing it, and
+        # `--batch-all-objects` then omits it on export: a snapshot of a world
+        # whose history starts from an empty commit lost one object per
+        # round-trip and never matched its own digest.
+        source = self.repository("source")
+        root = source.create_commit(
+            message="empty root",
+            author_name="Seed",
+            author_email="seed@example.com",
+            timestamp=datetime(2024, 1, 1, tzinfo=timezone.utc),
+            parent_shas=(),
+            files={},
+        )
+        source.update_branch("main", root["sha"])
+        exported = source.export_objects()
+        self.assertIn(EMPTY_TREE_SHA, [sha for sha, _, _ in exported])
+
+        target = self.repository("target")
+        target.import_objects(exported)
+        self.assertEqual(target.export_objects(), exported)
 
     def test_import_is_idempotent(self) -> None:
         source = self.repository("source")

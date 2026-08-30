@@ -15,6 +15,9 @@ import zlib
 from .errors import ConfigurationError
 
 
+EMPTY_TREE_SHA = "4b825dc642cb6eb9a060e54bf8d69288fbee4904"
+
+
 class GitStorageError(ConfigurationError):
     """A local Git object or ref operation failed."""
 
@@ -296,7 +299,10 @@ class BareGitRepository:
         if not encoded:
             return
         shas = [sha for sha, _ in encoded]
-        present = self._present_objects(shas)
+        # git answers `--batch-check` for the empty tree without any object on
+        # disk, and `--batch-all-objects` then omits it on export: a snapshot
+        # that carries it would lose one object per round-trip. Always write it.
+        present = self._present_objects(shas) - {EMPTY_TREE_SHA}
         for sha, raw in encoded:
             if sha not in present:
                 self._write_loose_object(sha, raw)
