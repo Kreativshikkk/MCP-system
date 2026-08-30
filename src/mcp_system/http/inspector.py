@@ -127,13 +127,17 @@ class InspectorHTTPRouter:
     ) -> HTTPResponse:
         try:
             limit = _query_integer(request, "limit", default=250)
+            latest = _query_boolean(request, "latest", default=False)
             service_values = request.query.get("service_instance_id", ())
             service_instance_id = service_values[-1] if service_values else None
             environment = self.system.require_environment(environment_id)
+            watermark = self.system.operation_watermark(environment_id)
+            since_seq = max(0, watermark - limit) if latest else 0
             operations = self.system.list_operations(
                 environment_id,
                 service_instance_id=service_instance_id,
                 limit=limit,
+                since_seq=since_seq,
             )
         except EnvironmentNotFoundError:
             return self._json_response(404, {"message": "Environment not found"})
@@ -147,7 +151,9 @@ class InspectorHTTPRouter:
                 "environment": _environment_dict(environment),
                 "operations": [_operation_dict(operation) for operation in operations],
                 "limit": limit,
-                "truncated": len(operations) == limit,
+                "truncated": since_seq > 0 if latest else len(operations) == limit,
+                "watermark": watermark,
+                "sinceSeq": since_seq,
             },
         )
 
@@ -192,6 +198,7 @@ def _environment_dict(environment: Environment) -> dict[str, Any]:
 def _operation_dict(operation: OperationRecord) -> dict[str, Any]:
     return {
         "id": operation.id,
+        "seq": operation.seq,
         "environmentId": operation.environment_id,
         "serviceInstanceId": operation.service_instance_id,
         "pluginId": operation.plugin_id,
@@ -217,6 +224,18 @@ def _query_integer(request: HTTPRequest, name: str, *, default: int) -> int:
         return int(values[-1])
     except ValueError as exc:
         raise ConfigurationError(f"{name} must be an integer") from exc
+
+
+def _query_boolean(request: HTTPRequest, name: str, *, default: bool) -> bool:
+    values = request.query.get(name, ())
+    if not values:
+        return default
+    value = values[-1].casefold()
+    if value in {"true", "1"}:
+        return True
+    if value in {"false", "0"}:
+        return False
+    raise ConfigurationError(f"{name} must be a boolean")
 
 
 def _timestamp(value: datetime) -> str:

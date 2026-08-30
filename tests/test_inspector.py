@@ -89,6 +89,29 @@ class InspectorHTTPRouterTests(unittest.TestCase):
         self.assertEqual(operations["operations"][1]["error"]["type"], "forbidden")
         self.assertFalse(operations["truncated"])
 
+    def test_operation_api_can_return_the_latest_bounded_window(self) -> None:
+        self.system.invoke_service_operation(
+            self.environment.id,
+            "github",
+            actor="engineer",
+            transport="mcp",
+            operation="get_authenticated_user",
+            arguments={},
+        )
+
+        operations = self._json(
+            HTTPRequest(
+                "GET",
+                f"/api/environments/{self.environment.id}/operations",
+                query={"limit": ("2",), "latest": ("true",)},
+            )
+        )
+
+        self.assertEqual([item["seq"] for item in operations["operations"]], [2, 3])
+        self.assertEqual(operations["watermark"], 3)
+        self.assertEqual(operations["sinceSeq"], 1)
+        self.assertTrue(operations["truncated"])
+
     def test_api_rejects_invalid_queries_and_mutation_methods(self) -> None:
         invalid = self.router.dispatch(
             HTTPRequest(
