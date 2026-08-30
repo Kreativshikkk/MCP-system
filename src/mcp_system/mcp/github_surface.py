@@ -51,6 +51,29 @@ def github_rest_v3_surface() -> SurfaceSpec:
         _tool("github_get_ref", "get_ref", "Get a GitHub Git reference.", {**OWNER_REPO, "ref": STRING}, ("owner", "repo", "ref"), True),
         _tool("github_list_matching_refs", "list_matching_refs", "List GitHub Git references matching a prefix.", {**OWNER_REPO, "ref": STRING}, ("owner", "repo", "ref"), True),
         _tool("github_update_ref", "update_ref", "Update a GitHub Git reference with fast-forward protection.", {**OWNER_REPO, "ref": STRING, "sha": STRING, "force": BOOLEAN}, ("owner", "repo", "ref", "sha"), False),
+        _tool(
+            "github_get_file_contents", "get_file_contents",
+            "Get the contents of a file or directory from a GitHub repository.",
+            {
+                **OWNER_REPO,
+                "path": {"type": "string", "description": "Path to file/directory (directories must end with a slash '/')."},
+                "ref": {**STRING, "description": "Accepts optional git refs such as `refs/tags/{tag}`, `refs/heads/{branch}` or a short branch or tag name."},
+                "sha": {**STRING, "description": "Accepts optional commit SHA. If specified, it will be used instead of ref."},
+                "fields": {**STRINGS, "description": "Optional list of fields to include in the response for directories. If not specified, all fields are returned."},
+            },
+            ("owner", "repo"), True,
+        ),
+        _tool(
+            "github_get_repository_tree", "get_repository_tree",
+            "Get the tree structure (files and directories) of a GitHub repository at a specific ref or SHA.",
+            {
+                **OWNER_REPO,
+                "tree_sha": {**STRING, "description": "The SHA1 value or ref (branch or tag) name of the tree. Defaults to the repository's default branch."},
+                "recursive": {**BOOLEAN, "description": "Whether to get the tree recursively (all nested files and directories). Default: false."},
+                "path_filter": {**STRING, "description": "Filter results to only include paths starting with this prefix (e.g. 'src/')."},
+            },
+            ("owner", "repo"), True,
+        ),
         _tool("github_list_labels", "list_labels", "List repository issue labels.", OWNER_REPO, ("owner", "repo"), True),
         _tool(
             "github_create_label", "create_label", "Create a repository issue label.",
@@ -156,6 +179,11 @@ def github_rest_v3_surface() -> SurfaceSpec:
             "github_create_release", "create_release", "Create a GitHub repository release.",
             {**OWNER_REPO, "tag_name": STRING, "target_commitish": STRING, "name": NULLABLE_STRING, "body": NULLABLE_STRING, "draft": BOOLEAN, "prerelease": BOOLEAN},
             ("owner", "repo", "tag_name"), False,
+        ),
+        _tool(
+            "github_update_release", "update_release", "Update an existing GitHub repository release (PATCH /repos/{owner}/{repo}/releases/{release_id}).",
+            {**OWNER_REPO, "release_id": INTEGER, "tag_name": STRING, "target_commitish": STRING, "name": NULLABLE_STRING, "body": NULLABLE_STRING, "draft": BOOLEAN, "prerelease": BOOLEAN, "make_latest": {"type": "string", "enum": ["true", "false", "legacy"]}, "discussion_category_name": NULLABLE_STRING},
+            ("owner", "repo", "release_id"), False,
         ),
     )
     return SurfaceSpec("github_rest_v3", "github", tools)

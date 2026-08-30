@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import base64
 import http.client
 import json
 import os
@@ -153,6 +154,35 @@ class HTTPMiddlewareSQLiteTests(unittest.TestCase):
         template = self.system.create_template(load_template_spec(CONFIG))
         environment = self.system.create_environment_from_template(template.id)
         exercise_http_contract(self, self.system, environment.id)
+
+    def test_content_and_tree_routes_address_nested_paths(self) -> None:
+        template = self.system.create_template(load_template_spec(CONFIG))
+        environment = self.system.create_environment_from_template(template.id)
+        with self.system.open_service_operations(environment.id, "github", actor="engineer") as operations:
+            commit = operations.create_commit("acme", "product", message="base", author="engineer", files={"src/lib/util.py": "VALUE = 1\n"})
+            operations.create_branch("acme", "product", name="main", head_sha=commit["sha"])
+        router = GitHubHTTPRouter(
+            self.system,
+            environment.id,
+            actor_resolver=FixedActorResolver("engineer", token=TOKEN),
+        )
+        with RunningMiddleware(router) as middleware:
+            # the contents path parameter is greedy: it addresses a nested file
+            status, _, content = middleware.request("GET", "/repos/acme/product/contents/src/lib/util.py?ref=main")
+            self.assertEqual(status, 200)
+            self.assertEqual(base64.b64decode(content["content"]).decode(), "VALUE = 1\n")
+
+            status, _, listing = middleware.request("GET", "/repos/acme/product/contents/src")
+            self.assertEqual(status, 200)
+            self.assertEqual([entry["path"] for entry in listing], ["src/lib"])
+
+            status, _, tree = middleware.request("GET", "/repos/acme/product/git/trees/main?recursive=1")
+            self.assertEqual(status, 200)
+            self.assertEqual([entry["path"] for entry in tree["tree"]], ["src/lib/util.py"])
+
+            status, _, missing = middleware.request("GET", "/repos/acme/product/contents/nope.py")
+            self.assertEqual(status, 404)
+            self.assertEqual(missing["message"], "Not Found")
 
 
 @unittest.skipUnless(

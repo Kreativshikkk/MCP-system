@@ -272,6 +272,51 @@
     },
     {
       "method": "GET",
+      "path": "/repos/{owner}/{repo}/contents/{path}",
+      "operation_id": "repos/get-content",
+      "responses": [
+        "200",
+        "302",
+        "304",
+        "403",
+        "404"
+      ],
+      "query": {
+        "properties": [
+          "ref"
+        ],
+        "required": []
+      },
+      "request": {
+        "properties": [],
+        "required": [],
+        "any_of_required": []
+      }
+    },
+    {
+      "method": "GET",
+      "path": "/repos/{owner}/{repo}/git/trees/{tree_sha}",
+      "operation_id": "git/get-tree",
+      "responses": [
+        "200",
+        "404",
+        "409",
+        "422"
+      ],
+      "query": {
+        "properties": [
+          "recursive"
+        ],
+        "required": []
+      },
+      "request": {
+        "properties": [],
+        "required": [],
+        "any_of_required": []
+      }
+    },
+    {
+      "method": "GET",
       "path": "/repos/{owner}/{repo}/labels",
       "operation_id": "issues/list-labels-for-repo",
       "responses": [

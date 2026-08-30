@@ -28,12 +28,17 @@ class Route:
     aliases: Mapping[str, str] | None = None
     status: int = 200
     empty_response: bool = False
+    greedy_params: tuple[str, ...] = ()
     pattern: re.Pattern[str] = field(init=False, repr=False, compare=False)
 
     def __post_init__(self) -> None:
-        expression = re.sub(
-            r"\{([a-z_]+)\}", r"(?P<\1>[^/]+)", self.path
-        )
+        # A greedy parameter matches slashes: `contents/{path}` addresses a file
+        # anywhere in the tree, so `[^/]+` would never match `src/app/main.py`.
+        def _group(match: re.Match[str]) -> str:
+            name = match.group(1)
+            return f"(?P<{name}>{'.+' if name in self.greedy_params else '[^/]+'})"
+
+        expression = re.sub(r"\{([a-z_]+)\}", _group, self.path)
         object.__setattr__(self, "pattern", re.compile(f"^{expression}$"))
 
 
@@ -211,6 +216,8 @@ ROUTES: Sequence[Route] = (
     Route("PATCH", "/repos/{owner}/{repo}", "update_repository", ("name", "description", "private", "archived", "default_branch")),
     Route("GET", "/repos/{owner}/{repo}/branches", "list_branches"),
     Route("GET", "/repos/{owner}/{repo}/commits", "list_commits"),
+    Route("GET", "/repos/{owner}/{repo}/contents/{path}", "get_content", query_fields=("ref",), greedy_params=("path",)),
+    Route("GET", "/repos/{owner}/{repo}/git/trees/{tree_sha}", "get_tree", query_fields=("recursive",)),
     Route("GET", "/repos/{owner}/{repo}/labels", "list_labels"),
     Route("POST", "/repos/{owner}/{repo}/labels", "create_label", ("name", "color", "description"), ("name",), status=201),
     Route("GET", "/repos/{owner}/{repo}/issues", "list_issues", query_fields=("state",)),

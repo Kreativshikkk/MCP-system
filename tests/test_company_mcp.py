@@ -119,7 +119,7 @@ class CompanyMCPTests(unittest.TestCase):
             self.assertEqual(process.returncode, 0, process.stderr)
             responses = [json.loads(line) for line in process.stdout.splitlines()]
             tools = {tool["name"] for tool in responses[1]["result"]["tools"]}
-            self.assertEqual(len(tools), 234)
+            self.assertEqual(len(tools), 237)
             self.assertTrue(
                 {"github_get_authenticated_user", "gitlab_get_current_user", "jira_get_current_user", "bitbucket_get_current_user", "linear_get_viewer", "youtrack_get_current_user"}
                 <= tools

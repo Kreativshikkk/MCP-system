@@ -4,6 +4,7 @@ export/import, and the Git reads that Merkle-hashing and release notes depend on
 
 from __future__ import annotations
 
+from datetime import datetime, timezone
 from pathlib import Path
 import tempfile
 import unittest
@@ -11,6 +12,7 @@ import unittest
 from mcp_system import MCPSystem, PluginRegistry, TemplateSpec
 from mcp_system.config import load_template_spec
 from mcp_system.errors import EnvironmentFrozenError, EnvironmentNotFoundError
+from mcp_system.git_storage import BareGitRepository, GitStorageError
 from mcp_system.service_plugins import GitLabPlugin, JiraPlugin
 
 
@@ -257,6 +259,97 @@ class HarnessPrimitivesTest(unittest.TestCase):
         self.assertIn("refs/tags/v0.1.0", repository.all_refs())
         self.assertEqual(repository.read_tree_contents("v0.1.0")["app.py"],
                          b"VALUE = 1\n")
+
+
+class GitObjectTransferTest(unittest.TestCase):
+    """export_objects/import_objects move raw objects between repositories."""
+
+    def setUp(self) -> None:
+        self._tmp = tempfile.TemporaryDirectory()
+        self.addCleanup(self._tmp.cleanup)
+        self.root = Path(self._tmp.name)
+
+    def repository(self, name: str) -> BareGitRepository:
+        result = BareGitRepository(self.root / f"{name}.git")
+        result.initialize()
+        return result
+
+    def seed(self, repository: BareGitRepository) -> str:
+        """A repo holding every object type and every awkward blob shape."""
+        base = repository.create_commit(
+            message="Baseline",
+            author_name="Engineer",
+            author_email="engineer@example.test",
+            timestamp=datetime(2024, 1, 1, tzinfo=timezone.utc),
+            files={
+                "app.py": "VALUE = 1\n",
+                "pkg/nested.txt": "deep\n",
+                "empty.dat": b"",
+                "binary.dat": bytes(range(256)) * 4 + b"\n\x00\n",
+                "large.bin": bytes(range(256)) * 400,
+            },
+        )
+        head = repository.create_commit(
+            message="Second",
+            author_name="Engineer",
+            author_email="engineer@example.test",
+            timestamp=datetime(2024, 1, 2, tzinfo=timezone.utc),
+            parent_shas=(base["sha"],),
+            files={"app.py": "VALUE = 2\n"},
+        )
+        repository.update_branch("main", head["sha"])
+        return head["sha"]
+
+    def test_export_on_an_empty_repository_is_empty(self) -> None:
+        self.assertEqual(self.repository("empty").export_objects(), [])
+
+    def test_round_trip_reproduces_every_object_byte_for_byte(self) -> None:
+        source = self.repository("source")
+        head = self.seed(source)
+        exported = source.export_objects()
+        types = {object_type for _, object_type, _ in exported}
+        sizes = {len(content) for _, _, content in exported}
+        self.assertEqual(types, {"blob", "tree", "commit"})
+        self.assertIn(0, sizes)
+        self.assertTrue(any(size > 64 * 1024 for size in sizes))
+        self.assertEqual([item[0] for item in exported],
+                         sorted(item[0] for item in exported))
+
+        target = self.repository("target")
+        target.import_objects(exported)
+        self.assertEqual(target.export_objects(), exported)
+        target.set_ref("refs/heads/main", head)
+        self.assertEqual(target.read_tree_contents("main")["binary.dat"],
+                         bytes(range(256)) * 4 + b"\n\x00\n")
+        self.assertEqual(target.read_tree_contents("main")["empty.dat"], b"")
+
+    def test_import_is_idempotent(self) -> None:
+        source = self.repository("source")
+        self.seed(source)
+        exported = source.export_objects()
+        target = self.repository("target")
+        target.import_objects(exported)
+        target.import_objects(exported)
+        self.assertEqual(target.export_objects(), exported)
+
+    def test_import_into_a_repository_that_already_has_the_objects(self) -> None:
+        source = self.repository("source")
+        self.seed(source)
+        exported = source.export_objects()
+        source.import_objects(exported)
+        self.assertEqual(source.export_objects(), exported)
+
+    def test_import_rejects_a_sha_that_does_not_match_the_content(self) -> None:
+        target = self.repository("target")
+        with self.assertRaises(GitStorageError) as raised:
+            target.import_objects([("0" * 40, "blob", b"content\n")])
+        self.assertIn("expected " + "0" * 40, str(raised.exception))
+        self.assertEqual(target.export_objects(), [])
+
+    def test_read_objects_reports_a_missing_object(self) -> None:
+        target = self.repository("target")
+        with self.assertRaises(GitStorageError):
+            target.read_objects(["0" * 40])
 
 
 if __name__ == "__main__":  # pragma: no cover

@@ -68,6 +68,10 @@ Implemented:
 - inline pull-request review-comment create/list;
 - merge state transitions that atomically close the PR issue and advance the
   base branch;
+- repository contents and Git trees: `get_content` and `get_tree` mirror the
+  REST endpoints, `get_file_contents` and `get_repository_tree` mirror the
+  official `github-mcp-server` tools of the same name (reference resolution,
+  resource-style file payloads, tree-match recovery on a missing path);
 - isolated Git data-plane cloning with ref compensation when the SQL
   transaction rolls back;
 - GitHub-shaped serializers and provider error types.
@@ -79,16 +83,16 @@ and commit in the environment's bare repository before recording the relational
 projection. A failed operation restores changed refs; immutable unreachable
 objects may remain and are safe to collect with Git GC.
 
-The bounded surface now includes 46 MCP tools, including selected Actions
-runs/jobs/logs and releases. Static contract, SQLite/PostgreSQL lifecycle, and
+The bounded surface now includes 54 MCP tools, including selected Actions
+runs/jobs/logs, releases, and repository contents/tree reads. Static contract, SQLite/PostgreSQL lifecycle, and
 live differential gates have passed for the selected workflows.
 
 Deliberate exclusions are complete GitHub permission parity, Git smart protocol
 and working-tree checkout, generated models for the entire OpenAPI document,
-and all endpoints outside the pinned 46-tool selection. These are not blockers
+and all endpoints outside the pinned 54-tool selection. These are not blockers
 for the completed MCP service foundation and should be added only for a named
 benchmark workflow.
 
-The local HTTP middleware currently routes 38 selected REST endpoints. It
+The local HTTP middleware currently routes 45 selected REST endpoints. It
 supports both root-relative and `/api/v3` paths and never proxies unsupported
 routes to the external provider.

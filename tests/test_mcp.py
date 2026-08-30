@@ -83,7 +83,7 @@ def exercise_mcp_contract(
     )
     case.assertIsNotNone(listed)
     tools = listed["result"]["tools"]
-    case.assertEqual(len(tools), 51)
+    case.assertEqual(len(tools), 54)
     case.assertLessEqual(
         {"github_create_issue", "github_list_workflow_runs", "github_list_workflow_jobs", "github_get_workflow_job", "github_get_workflow_job_log", "github_list_releases", "github_create_release"},
         {tool["name"] for tool in tools},

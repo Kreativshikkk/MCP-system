@@ -2,9 +2,12 @@
 
 from __future__ import annotations
 
+import base64
+import mimetypes
 import re
 from typing import Any, Mapping, Sequence
 
+from ...git_storage import GitStorageError
 from .operations import (
     GitHubConflict,
     GitHubForbidden,
@@ -16,6 +19,8 @@ from .operations import (
 
 
 _GIT_SHA = re.compile(r"^[0-9a-fA-F]{40}([0-9a-fA-F]{24})?$")
+_FULL_SHA = re.compile(r"[0-9a-fA-F]{40}")
+_MAX_INLINE_CONTENT = 1024 * 1024
 
 
 class GitHubPullRequestOperations(GitHubOperations):
@@ -440,6 +445,506 @@ class GitHubPullRequestOperations(GitHubOperations):
             raise GitHubValidationError("Validation Failed: release tag already exists") from exc
         row = self.session.execute("SELECT * FROM github_releases WHERE id=?", (release_id,)).fetchone()
         return self._release_dict(row, repository_row)
+
+    def update_release(self, owner: str, repository: str, *, release_id: int,
+                       tag_name: str | None = None, target_commitish: str | None = None,
+                       name: str | None = None, body: str | None = None,
+                       draft: bool | None = None, prerelease: bool | None = None,
+                       make_latest: str = "true",
+                       discussion_category_name: str | None = None) -> dict[str, Any]:
+        """Mirror of GitHub REST `PATCH /repos/{owner}/{repo}/releases/{release_id}`.
+
+        Partial update: only supplied fields change. Publishing a draft
+        (draft=false on a currently-drafted release) stamps published_at, the
+        same transition create_release models. `make_latest` /
+        `discussion_category_name` are accepted for API fidelity but, like the
+        create replica, are not separately modelled (no latest pointer or
+        discussions table).
+        """
+        repository_row = self._require_repository(owner, repository, minimum_permission="push")
+        row = self.session.execute(
+            "SELECT * FROM github_releases WHERE id=? AND repository_id=?",
+            (release_id, repository_row["id"]),
+        ).fetchone()
+        if row is None:
+            raise GitHubNotFound("Not Found")
+        if make_latest not in ("true", "false", "legacy"):
+            raise GitHubValidationError("Validation Failed: make_latest must be true, false, or legacy")
+
+        assignments: list[str] = []
+        values: list[Any] = []
+        if tag_name is not None:
+            if not tag_name.strip():
+                raise GitHubValidationError("Validation Failed: tag_name is required")
+            assignments.append("tag_name=?")
+            values.append(tag_name)
+        if target_commitish is not None:
+            branch = self._require_branch(repository_row["id"], target_commitish)
+            assignments.append("target_commitish=?")
+            values.append(branch["name"])
+        if name is not None:
+            assignments.append("name=?")
+            values.append(name)
+        if body is not None:
+            assignments.append("body=?")
+            values.append(body)
+        if prerelease is not None:
+            assignments.append("prerelease=?")
+            values.append(prerelease)
+        if draft is not None:
+            assignments.append("draft=?")
+            values.append(draft)
+            # publishing a draft stamps published_at; re-drafting clears it
+            if draft and row["published_at"] is not None:
+                assignments.append("published_at=?")
+                values.append(None)
+            elif not draft and row["published_at"] is None:
+                assignments.append("published_at=?")
+                values.append(self._now_value())
+
+        if assignments:
+            try:
+                self.session.execute(
+                    f"UPDATE github_releases SET {', '.join(assignments)} WHERE id=?",
+                    (*values, release_id),
+                )
+            except Exception as exc:
+                raise GitHubValidationError("Validation Failed: release tag already exists") from exc
+        row = self.session.execute("SELECT * FROM github_releases WHERE id=?", (release_id,)).fetchone()
+        return self._release_dict(row, repository_row)
+
+    # Repository contents.
+    #
+    # `get_content` and `get_tree` mirror the REST endpoints; `get_file_contents`
+    # and `get_repository_tree` mirror the official github-mcp-server tools of
+    # the same name, including their reference resolution, resource shapes and
+    # 404 recovery, because those are the tools a solver actually calls.
+
+    def get_content(
+        self,
+        owner: str,
+        repository: str,
+        path: str = "",
+        *,
+        ref: str | None = None,
+    ) -> dict[str, Any] | list[dict[str, Any]]:
+        """Mirror of GitHub REST `GET /repos/{owner}/{repo}/contents/{path}`.
+
+        A file comes back as one object with base64 `content`; a directory as an
+        array of the same objects without `content`; an empty path lists the
+        repository root. A file over 1 MB carries `content: ""` and
+        `encoding: "none"`, exactly as the real endpoint does.
+        """
+        repository_row = self._require_repository(owner, repository)
+        _, commit_sha, _ = self._resolve_git_reference(repository_row, ref)
+        git_repository = self._git_repository(repository_row["id"])
+        normalized = self._normalize_content_path(path)
+        label = self._ref_label(repository_row, ref)
+        if not normalized:
+            children = self._tree_children(git_repository, commit_sha)
+            return [self._content_entry(repository_row, child, "", label) for child in children]
+        try:
+            matches = git_repository.list_tree(commit_sha, path=normalized, with_size=True)
+        except GitStorageError as exc:
+            raise GitHubNotFound("Not Found") from exc
+        entry = next((item for item in matches if item["path"] == normalized), None)
+        if entry is None:
+            raise GitHubNotFound("Not Found")
+        if entry["type"] == "tree":
+            children = self._tree_children(git_repository, entry["id"])
+            return [self._content_entry(repository_row, child, normalized, label) for child in children]
+        payload = git_repository.read_file(commit_sha, normalized)
+        return self._content_entry(repository_row, entry, "", label, payload=payload)
+
+    def get_tree(
+        self,
+        owner: str,
+        repository: str,
+        tree_sha: str,
+        *,
+        recursive: bool | str = False,
+    ) -> dict[str, Any]:
+        """Mirror of GitHub REST `GET /repos/{owner}/{repo}/git/trees/{tree_sha}`.
+
+        `tree_sha` is a commit SHA, a tree SHA, or a branch or tag name.
+        `recursive` follows REST semantics: any value except `0`/`false` enables
+        it. The replica never truncates, so `truncated` is always false.
+        """
+        repository_row = self._require_repository(owner, repository)
+        git_repository = self._git_repository(repository_row["id"])
+        revision = self._resolve_tree_revision(repository_row, tree_sha)
+        try:
+            root_sha = str(git_repository.commit_metadata(revision)["tree_sha"])
+        except GitStorageError:
+            root_sha = revision  # already a tree object
+        try:
+            entries = git_repository.list_tree(
+                revision, recursive=self._truthy(recursive), with_size=True
+            )
+        except GitStorageError as exc:
+            raise GitHubNotFound("Not Found") from exc
+        full_name = repository_row["full_name"]
+        tree: list[dict[str, Any]] = []
+        for entry in entries:
+            is_directory = entry["type"] == "tree"
+            item: dict[str, Any] = {
+                "path": entry["path"],
+                "mode": entry["mode"],
+                "type": entry["type"],
+                "sha": entry["id"],
+                "url": f"https://api.github.com/repos/{full_name}/git/{'trees' if is_directory else 'blobs'}/{entry['id']}",
+            }
+            if not is_directory:
+                item["size"] = int(entry["size"] or 0)
+            tree.append(item)
+        return {
+            "sha": root_sha,
+            "url": f"https://api.github.com/repos/{full_name}/git/trees/{root_sha}",
+            "tree": tree,
+            "truncated": False,
+        }
+
+    def get_file_contents(
+        self,
+        owner: str,
+        repository: str,
+        *,
+        path: str = "/",
+        ref: str | None = None,
+        sha: str | None = None,
+        fields: Sequence[str] | None = None,
+    ) -> dict[str, Any] | list[dict[str, Any]]:
+        """Mirror of the official github-mcp-server `get_file_contents` tool.
+
+        A file is returned resource-style — `{uri, mimeType, text|blob}` — with
+        the URI the official server builds; a file of 1 MB or more becomes a
+        resource link `{uri, download_url}`. A directory returns Contents
+        entries, optionally narrowed to `fields`. A path that does not exist
+        falls back to suffix matches in the recursive tree (at most three), and
+        only a total miss is a 404.
+        """
+        repository_row = self._require_repository(owner, repository)
+        resolved_ref, commit_sha, fallback_used = self._resolve_git_reference(
+            repository_row, ref, sha
+        )
+        reference = resolved_ref or commit_sha
+        note: str | None = None
+        if fallback_used:
+            note = (
+                f"Note: the provided ref {(ref or '').strip()!r} doesn't exist, "
+                f"default branch {repository_row['default_branch']!r} was used instead"
+            )
+        normalized = self._normalize_content_path(path)
+        try:
+            content = self.get_content(owner, repository, normalized, ref=reference)
+        except GitHubNotFound:
+            return self._match_files(repository_row, commit_sha, reference, normalized, note)
+        if isinstance(content, list):
+            entries = [self._select_fields(entry, fields) for entry in content]
+            return entries if note is None else {"note": note, "contents": entries}
+        return self._file_resource(repository_row, content, normalized, reference, note)
+
+    def get_repository_tree(
+        self,
+        owner: str,
+        repository: str,
+        *,
+        tree_sha: str | None = None,
+        recursive: bool | str = False,
+        path_filter: str | None = None,
+    ) -> dict[str, Any]:
+        """Mirror of the official github-mcp-server `get_repository_tree` tool.
+
+        `tree_sha` defaults to the repository's default branch; `path_filter`
+        keeps only entries whose path starts with the given prefix.
+        """
+        repository_row = self._require_repository(owner, repository)
+        effective = (tree_sha or "").strip() or repository_row["default_branch"]
+        recursive_flag = self._truthy(recursive)
+        tree = self.get_tree(owner, repository, effective, recursive=recursive_flag)
+        entries = tree["tree"]
+        if path_filter:
+            entries = [entry for entry in entries if entry["path"].startswith(path_filter)]
+        return {
+            "sha": tree["sha"],
+            "truncated": tree["truncated"],
+            "tree": entries,
+            "tree_sha": effective,
+            "owner": repository_row["owner_login"],
+            "repo": repository_row["name"],
+            "recursive": recursive_flag,
+            "count": len(entries),
+        }
+
+    # Content helpers
+
+    @staticmethod
+    def _looks_like_sha(value: str | None) -> bool:
+        return bool(value) and _FULL_SHA.fullmatch(value.strip()) is not None
+
+    def _resolve_git_reference(
+        self,
+        repository_row: Mapping[str, Any],
+        ref: str | None = None,
+        sha: str | None = None,
+    ) -> tuple[str | None, str, bool]:
+        """Port of github-mcp-server's `resolveGitReference`.
+
+        Returns `(fully qualified ref or None, commit sha, fallback_used)`.
+        `sha` wins over `ref`; a SHA-looking `ref` is used as a SHA; an empty
+        `ref` means the default branch; `refs/...` is used as given;
+        `heads/...`/`tags/...` are prefixed with `refs/`; a short name is tried
+        as a branch, then as a tag, and only the literal name `main` falls back
+        to the default branch.
+        """
+        if sha:
+            return None, sha.strip(), False
+        original = (ref or "").strip()
+        if self._looks_like_sha(original):
+            return None, original, False
+        default_branch = repository_row["default_branch"]
+        fallback_used = False
+        if not original:
+            resolved = f"refs/heads/{default_branch}"
+        elif original.startswith("refs/"):
+            resolved = original
+        elif original.startswith("heads/") or original.startswith("tags/"):
+            resolved = f"refs/{original}"
+        else:
+            branch_ref = f"refs/heads/{original}"
+            tag_ref = f"refs/tags/{original}"
+            if self._ref_sha(repository_row["id"], branch_ref) is not None:
+                resolved = branch_ref
+            elif self._ref_sha(repository_row["id"], tag_ref) is not None:
+                resolved = tag_ref
+            elif original == "main":
+                resolved = f"refs/heads/{default_branch}"
+                fallback_used = True
+            else:
+                raise GitHubNotFound(
+                    f"could not resolve ref {original!r} as a branch or a tag"
+                )
+        commit_sha = self._ref_sha(repository_row["id"], resolved)
+        if commit_sha is None and resolved == "refs/heads/main":
+            resolved = f"refs/heads/{default_branch}"
+            commit_sha = self._ref_sha(repository_row["id"], resolved)
+            fallback_used = commit_sha is not None
+        if commit_sha is None:
+            raise GitHubNotFound(
+                f"could not resolve ref {(original or resolved)!r} as a branch or a tag"
+            )
+        return resolved, commit_sha, fallback_used
+
+    def _ref_sha(self, repository_id: int, ref: str) -> str | None:
+        try:
+            kind, name = self._split_ref(ref)
+        except GitHubValidationError:
+            return None  # refs/pull/... and friends are not modelled
+        row = self._ref_row(repository_id, kind, name)
+        return None if row is None else str(row["sha"])
+
+    def _resolve_tree_revision(
+        self, repository_row: Mapping[str, Any], tree_sha: str | None
+    ) -> str:
+        value = (tree_sha or "").strip()
+        if not value:
+            raise GitHubValidationError("Validation Failed: tree_sha is required")
+        if _GIT_SHA.fullmatch(value):
+            return value
+        for kind in ("heads", "tags"):
+            row = self._ref_row(repository_row["id"], kind, value.removeprefix(f"refs/{kind}/"))
+            if row is not None:
+                return str(row["sha"])
+        raise GitHubNotFound("Not Found")
+
+    def _git_repository(self, repository_id: int) -> Any:
+        if self.git_data_plane is None:
+            raise GitHubConflict("Git data plane is not configured")
+        return self.git_data_plane.repository(repository_id)
+
+    @staticmethod
+    def _tree_children(git_repository: Any, revision: str) -> list[dict[str, Any]]:
+        try:
+            return git_repository.list_tree(revision, with_size=True)
+        except GitStorageError as exc:
+            raise GitHubNotFound("Not Found") from exc
+
+    @staticmethod
+    def _normalize_content_path(path: str | None) -> str:
+        value = (path or "").strip()
+        if value in ("", "/", "."):
+            return ""
+        normalized = value.strip("/")
+        if "\x00" in normalized or any(
+            part in ("", ".", "..") for part in normalized.split("/")
+        ):
+            raise GitHubValidationError(
+                f"Validation Failed: invalid repository path {value!r}"
+            )
+        return normalized
+
+    @staticmethod
+    def _ref_label(repository_row: Mapping[str, Any], ref: str | None) -> str:
+        value = (ref or "").strip()
+        if not value:
+            return str(repository_row["default_branch"])
+        for prefix in ("refs/heads/", "refs/tags/", "heads/", "tags/"):
+            if value.startswith(prefix):
+                return value[len(prefix):]
+        return value
+
+    def _content_entry(
+        self,
+        repository_row: Mapping[str, Any],
+        entry: Mapping[str, Any],
+        prefix: str,
+        label: str,
+        *,
+        payload: bytes | None = None,
+    ) -> dict[str, Any]:
+        full_path = "/".join(part for part in (prefix, entry["path"]) if part)
+        is_directory = entry["type"] == "tree"
+        full_name = repository_row["full_name"]
+        api_url = f"https://api.github.com/repos/{full_name}/contents/{full_path}?ref={label}"
+        git_url = f"https://api.github.com/repos/{full_name}/git/{'trees' if is_directory else 'blobs'}/{entry['id']}"
+        html_url = f"https://github.com/{full_name}/{'tree' if is_directory else 'blob'}/{label}/{full_path}"
+        result: dict[str, Any] = {
+            "type": "dir" if is_directory else "file",
+            "size": 0 if is_directory else int(entry.get("size") or 0),
+            "name": full_path.rsplit("/", 1)[-1],
+            "path": full_path,
+            "sha": entry["id"],
+            "url": api_url,
+            "git_url": git_url,
+            "html_url": html_url,
+            "download_url": None if is_directory else f"https://raw.githubusercontent.com/{full_name}/{label}/{full_path}",
+            "_links": {"self": api_url, "git": git_url, "html": html_url},
+        }
+        if payload is not None:
+            if result["size"] > _MAX_INLINE_CONTENT:
+                result["content"] = ""
+                result["encoding"] = "none"
+            else:
+                result["content"] = base64.b64encode(payload).decode()
+                result["encoding"] = "base64"
+        return result
+
+    @staticmethod
+    def _select_fields(
+        entry: Mapping[str, Any], fields: Sequence[str] | None
+    ) -> dict[str, Any]:
+        if not fields:
+            return dict(entry)
+        selected = set(fields)
+        return {key: value for key, value in entry.items() if key in selected}
+
+    def _file_resource(
+        self,
+        repository_row: Mapping[str, Any],
+        content: Mapping[str, Any],
+        path: str,
+        reference: str,
+        note: str | None,
+    ) -> dict[str, Any]:
+        uri = f"repo://{repository_row['full_name']}/{reference}/contents/{path}"
+        size = int(content["size"])
+        if content.get("encoding") == "none" or size >= _MAX_INLINE_CONTENT:
+            result: dict[str, Any] = {"uri": uri, "download_url": content["download_url"]}
+        else:
+            payload = base64.b64decode(content["content"])
+            if not payload:
+                result = {"uri": uri, "mimeType": "text/plain", "text": ""}
+            else:
+                media_type, is_text = self._detect_media_type(path, payload)
+                result = {"uri": uri, "mimeType": media_type}
+                if is_text:
+                    result["text"] = payload.decode("utf-8", errors="replace")
+                else:
+                    result["blob"] = base64.b64encode(payload).decode()
+        if note is not None:
+            result["note"] = note
+        return result
+
+    def _match_files(
+        self,
+        repository_row: Mapping[str, Any],
+        commit_sha: str,
+        reference: str,
+        path: str,
+        note: str | None,
+    ) -> dict[str, Any]:
+        """The official 404 recovery: suffix matches in the recursive tree."""
+        target = path.strip("/")
+        matches: list[str] = []
+        if target:
+            git_repository = self._git_repository(repository_row["id"])
+            try:
+                entries = git_repository.list_tree(commit_sha, recursive=True)
+            except GitStorageError:
+                entries = []
+            directories: set[str] = set()
+            files: list[str] = []
+            for entry in entries:
+                files.append(entry["path"])
+                parts = entry["path"].split("/")[:-1]
+                for index in range(1, len(parts) + 1):
+                    directories.add("/".join(parts[:index]))
+            matches = [
+                candidate
+                for candidate in sorted(files)
+                if candidate == target or candidate.endswith(f"/{target}")
+            ]
+            matches += [
+                f"{candidate}/"
+                for candidate in sorted(directories)
+                if candidate == target or candidate.endswith(f"/{target}")
+            ]
+            matches = matches[:3]
+        if not matches:
+            raise GitHubNotFound(
+                "Failed to get file contents. The path does not point to a file "
+                "or directory, or the file does not exist in the repository."
+            )
+        message = (
+            "Resolved potential matches in the repository tree "
+            f"(resolved refs: {reference}, matching files: {', '.join(matches)})"
+        )
+        return {
+            "note": message if note is None else f"{note}. {message}",
+            "resolved_refs": [reference],
+            "matching_files": matches,
+        }
+
+    @staticmethod
+    def _detect_media_type(path: str, payload: bytes) -> tuple[str, bool]:
+        """(media type, is_text) — extension first, utf-8 decode as the tiebreak."""
+        guessed, _ = mimetypes.guess_type(path)
+        if guessed:
+            is_text = (
+                guessed.startswith("text/")
+                or guessed in ("application/json", "application/xml")
+                or guessed.endswith("+json")
+                or guessed.endswith("+xml")
+            )
+            return guessed, is_text
+        if b"\x00" in payload:
+            return "application/octet-stream", False
+        try:
+            payload.decode("utf-8")
+        except UnicodeDecodeError:
+            return "application/octet-stream", False
+        return "text/plain", True
+
+    @staticmethod
+    def _truthy(value: Any) -> bool:
+        """REST `recursive`: any value but `0`/`false` enables it."""
+        if isinstance(value, bool):
+            return value
+        if value is None:
+            return False
+        if isinstance(value, str):
+            return value.strip().lower() not in ("", "0", "false")
+        return bool(value)
 
     @staticmethod
     def _split_ref(ref: str) -> tuple[str, str]:
