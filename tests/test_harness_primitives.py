@@ -4,13 +4,17 @@ export/import, and the Git reads that Merkle-hashing and release notes depend on
 
 from __future__ import annotations
 
+from datetime import datetime, timezone
 from pathlib import Path
+import subprocess
 import tempfile
 import unittest
+from unittest.mock import patch
 
 from mcp_system import MCPSystem, PluginRegistry, TemplateSpec
 from mcp_system.config import load_template_spec
 from mcp_system.errors import EnvironmentFrozenError, EnvironmentNotFoundError
+from mcp_system.git_storage import BareGitRepository
 from mcp_system.service_plugins import GitLabPlugin, JiraPlugin
 
 
@@ -232,6 +236,103 @@ class HarnessPrimitivesTest(unittest.TestCase):
             {"app.py": b"VALUE = 1\n", "pkg/util.py": b"X = 2\n",
              "README.md": b"# hi\n"},
         )
+
+    def test_tree_reads_and_exports_use_binary_safe_batch_reads(self) -> None:
+        repository = self.system.open_git_data_plane(
+            self.environment.id, "gitlab"
+        ).repository(1)
+        commit = repository.create_commit(
+            message="Binary fixture",
+            author_name="engineer",
+            author_email="engineer@example.com",
+            timestamp=datetime(2026, 1, 1, tzinfo=timezone.utc),
+            files={"fixture.bin": b"before\x00middle\nafter\xff"},
+        )
+
+        with patch(
+            "mcp_system.git_storage.subprocess.run", wraps=subprocess.run
+        ) as run:
+            tree = repository.read_tree_contents(commit["sha"])
+            exported = repository.export_objects()
+
+        self.assertEqual(tree["fixture.bin"], b"before\x00middle\nafter\xff")
+        self.assertIn(
+            b"before\x00middle\nafter\xff", [item[2] for item in exported]
+        )
+        commands = [call.args[0] for call in run.call_args_list]
+        self.assertEqual(commands.count(("git", "cat-file", "--batch")), 2)
+
+    def test_commit_batches_blob_writes_and_index_updates(self) -> None:
+        repository = self.system.open_git_data_plane(
+            self.environment.id, "gitlab"
+        ).repository(1)
+        base = repository.create_commit(
+            message="Base",
+            author_name="engineer",
+            author_email="engineer@example.com",
+            timestamp=datetime(2026, 1, 1, tzinfo=timezone.utc),
+            files={"delete.txt": b"old", "keep.txt": b"before"},
+        )
+
+        with patch(
+            "mcp_system.git_storage.subprocess.run", wraps=subprocess.run
+        ) as run:
+            commit = repository.create_commit(
+                message="Batch changes",
+                author_name="engineer",
+                author_email="engineer@example.com",
+                timestamp=datetime(2026, 1, 2, tzinfo=timezone.utc),
+                parent_shas=(base["sha"],),
+                files={
+                    "delete.txt": None,
+                    "keep.txt": b"after\x00",
+                    "new.txt": b"new",
+                },
+            )
+
+        commands = [call.args[0] for call in run.call_args_list]
+        hashes = [
+            command for command in commands
+            if command[:2] == ("git", "hash-object")
+        ]
+        indexes = [
+            command for command in commands
+            if command[:2] == ("git", "update-index")
+        ]
+        self.assertEqual(len(hashes), 1)
+        self.assertIn("--stdin-paths", hashes[0])
+        self.assertEqual(
+            indexes, [("git", "update-index", "-z", "--index-info")]
+        )
+        self.assertEqual(
+            repository.read_tree_contents(commit["sha"]),
+            {"keep.txt": b"after\x00", "new.txt": b"new"},
+        )
+
+    def test_import_batches_each_git_object_type(self) -> None:
+        head = self.seed_repo()
+        source = self.system.open_git_data_plane(
+            self.environment.id, "gitlab"
+        ).repository(1)
+        objects = source.export_objects()
+        restored = BareGitRepository(Path(self._tmp.name) / "batch-import.git")
+        restored.initialize()
+
+        with patch(
+            "mcp_system.git_storage.subprocess.run", wraps=subprocess.run
+        ) as run:
+            restored.import_objects(objects)
+
+        commands = [call.args[0] for call in run.call_args_list]
+        hashes = [
+            command for command in commands
+            if command[:2] == ("git", "hash-object")
+        ]
+        self.assertEqual(
+            len(hashes), len({object_type for _, object_type, _ in objects})
+        )
+        self.assertTrue(all("--stdin-paths" in command for command in hashes))
+        self.assertEqual(restored.object_type(head), "commit")
 
     def test_log_honours_the_range_and_merges_only(self) -> None:
         base = self.seed_repo()

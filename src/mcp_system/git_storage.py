@@ -58,27 +58,32 @@ class BareGitRepository:
         try:
             if parent_shas:
                 self._run("read-tree", parent_shas[0], extra_env=environment)
+            indexed: list[tuple[str, bytes | None]] = []
+            payloads: list[bytes] = []
             for raw_path, content in sorted((files or {}).items()):
                 file_path = self._validate_file_path(raw_path)
                 if content is None:
-                    self._run(
-                        "update-index",
-                        "--force-remove",
-                        "--",
-                        file_path,
-                        extra_env=environment,
-                    )
+                    indexed.append((file_path, None))
                     continue
                 payload = content.encode("utf-8") if isinstance(content, str) else content
-                blob_sha = self._run_bytes("hash-object", "-w", "--stdin", data=payload)
-                self._run(
-                    "update-index",
-                    "--add",
-                    "--cacheinfo",
-                    "100644",
-                    blob_sha,
-                    file_path,
-                    extra_env=environment,
+                payloads.append(payload)
+                indexed.append((file_path, payload))
+            blob_shas = iter(self._write_objects_batch("blob", payloads))
+            index_info = bytearray()
+            for file_path, payload in indexed:
+                if payload is None:
+                    index_info.extend(
+                        f"0 {'0' * 40}\t{file_path}".encode("utf-8") + b"\0"
+                    )
+                else:
+                    index_info.extend(
+                        f"100644 {next(blob_shas)}\t{file_path}".encode("utf-8")
+                        + b"\0"
+                    )
+            if index_info:
+                self._run_bytes(
+                    "update-index", "-z", "--index-info",
+                    data=bytes(index_info), extra_env=environment,
                 )
             tree_sha = self._run("write-tree", extra_env=environment)
         finally:
@@ -227,9 +232,12 @@ class BareGitRepository:
         self.initialize()
         entries = [e for e in self.list_tree(ref, recursive=True)
                    if e["type"] == "blob"]
+        contents = self._read_objects_batch(
+            [(entry["id"], "blob") for entry in entries]
+        )
         return {
-            entry["path"]: self._read_object(entry["id"], "blob")
-            for entry in entries
+            entry["path"]: content
+            for entry, (_, _, content) in zip(entries, contents, strict=True)
         }
 
     def log(
@@ -267,36 +275,32 @@ class BareGitRepository:
         """Every object in the repository as (sha, type, content), sorted."""
         self.initialize()
         listing = self._run("cat-file", "--batch-all-objects", "--batch-check")
-        objects: list[tuple[str, str, bytes]] = []
+        objects: list[tuple[str, str]] = []
         for line in sorted(listing.splitlines()):
             if not line.strip():
                 continue
             sha, object_type, _ = line.split(" ", 2)
-            objects.append((sha, object_type, self._read_object(sha, object_type)))
-        return objects
+            objects.append((sha, object_type))
+        return self._read_objects_batch(objects)
 
     def import_objects(self, objects: Sequence[tuple[str, str, bytes]]) -> None:
         """Write raw objects back. Content-addressed, so order does not matter."""
         self.initialize()
-        environment = os.environ.copy()
-        environment["GIT_DIR"] = str(self.path)
+        by_type: dict[str, list[tuple[str, bytes]]] = {}
         for sha, object_type, content in objects:
-            result = subprocess.run(
-                ("git", "hash-object", "-t", object_type, "-w", "--stdin",
-                 "--literally"),
-                input=content, stdout=subprocess.PIPE, stderr=subprocess.PIPE,
-                env=environment, check=False,
+            by_type.setdefault(object_type, []).append((sha, content))
+        for object_type, typed_objects in sorted(by_type.items()):
+            written_shas = self._write_objects_batch(
+                object_type, [content for _, content in typed_objects]
             )
-            if result.returncode != 0:
-                raise GitStorageError(
-                    result.stderr.decode("utf-8", errors="replace").strip()
-                    or "Git object import failed"
-                )
-            written = result.stdout.decode().strip()
-            if written != sha:
-                raise GitStorageError(
-                    f"imported object hashed to {written}, expected {sha}"
-                )
+            for (expected_sha, _), written_sha in zip(
+                typed_objects, written_shas, strict=True
+            ):
+                if written_sha != expected_sha:
+                    raise GitStorageError(
+                        f"imported object hashed to {written_sha}, "
+                        f"expected {expected_sha}"
+                    )
 
     def resolve_ref(self, name: str) -> str | None:
         """Full ref name (refs/heads/x, refs/tags/y) to sha, or None."""
@@ -322,19 +326,109 @@ class BareGitRepository:
         self.initialize()
         self._run("update-ref", name, sha)
 
-    def _read_object(self, sha: str, object_type: str) -> bytes:
+    def _read_objects_batch(
+        self, objects: Sequence[tuple[str, str]]
+    ) -> list[tuple[str, str, bytes]]:
+        """Read ordered raw objects through one binary-safe cat-file process."""
+        if not objects:
+            return []
         environment = os.environ.copy()
         environment["GIT_DIR"] = str(self.path)
         result = subprocess.run(
-            ("git", "cat-file", object_type, sha), stdout=subprocess.PIPE,
-            stderr=subprocess.PIPE, env=environment, check=False,
+            ("git", "cat-file", "--batch"),
+            input=b"".join(f"{sha}\n".encode("ascii") for sha, _ in objects),
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            env=environment,
+            check=False,
         )
         if result.returncode != 0:
             raise GitStorageError(
                 result.stderr.decode("utf-8", errors="replace").strip()
-                or "Git object read failed"
+                or "Git batch object read failed"
             )
-        return result.stdout
+
+        output = result.stdout
+        offset = 0
+        contents: list[tuple[str, str, bytes]] = []
+        for expected_sha, expected_type in objects:
+            header_end = output.find(b"\n", offset)
+            if header_end < 0:
+                raise GitStorageError("truncated Git batch object header")
+            header = output[offset:header_end].decode("ascii", errors="replace")
+            fields = header.split()
+            if len(fields) != 3:
+                raise GitStorageError(f"invalid Git batch object header: {header!r}")
+            actual_sha, actual_type, raw_size = fields
+            try:
+                size = int(raw_size)
+            except ValueError as error:
+                raise GitStorageError(
+                    f"invalid Git batch object size: {raw_size!r}"
+                ) from error
+            if actual_sha != expected_sha or actual_type != expected_type:
+                raise GitStorageError(
+                    "Git batch object mismatch: "
+                    f"expected {expected_sha} {expected_type}, "
+                    f"received {actual_sha} {actual_type}"
+                )
+            content_start = header_end + 1
+            content_end = content_start + size
+            if (
+                content_end >= len(output)
+                or output[content_end:content_end + 1] != b"\n"
+            ):
+                raise GitStorageError("truncated Git batch object content")
+            contents.append(
+                (expected_sha, expected_type, output[content_start:content_end])
+            )
+            offset = content_end + 1
+        if offset != len(output):
+            raise GitStorageError(
+                "unexpected trailing data from Git batch object read"
+            )
+        return contents
+
+    def _write_objects_batch(
+        self, object_type: str, contents: Sequence[bytes]
+    ) -> list[str]:
+        """Write same-type objects through one hash-object process."""
+        if not contents:
+            return []
+        environment = os.environ.copy()
+        environment["GIT_DIR"] = str(self.path)
+        with tempfile.TemporaryDirectory(
+            prefix="mcp-git-objects-", dir=self.path.parent
+        ) as temporary_directory:
+            paths: list[Path] = []
+            root = Path(temporary_directory)
+            for index, content in enumerate(contents):
+                path = root / f"{index:08d}"
+                path.write_bytes(content)
+                paths.append(path)
+            result = subprocess.run(
+                (
+                    "git", "hash-object", "-t", object_type, "-w",
+                    "--stdin-paths", "--no-filters",
+                ),
+                input=b"".join(f"{path}\n".encode("utf-8") for path in paths),
+                stdout=subprocess.PIPE,
+                stderr=subprocess.PIPE,
+                env=environment,
+                check=False,
+            )
+        if result.returncode != 0:
+            raise GitStorageError(
+                result.stderr.decode("utf-8", errors="replace").strip()
+                or "Git batch object write failed"
+            )
+        shas = result.stdout.decode("ascii").splitlines()
+        if len(shas) != len(contents):
+            raise GitStorageError(
+                f"Git wrote {len(shas)} {object_type} objects, "
+                f"expected {len(contents)}"
+            )
+        return shas
 
     def list_tree(
         self, ref: str, *, path: str | None = None, recursive: bool = False
