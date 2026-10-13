@@ -16,6 +16,7 @@ def main() -> None:
     parser.add_argument("--data-root", type=Path, default=Path("data"))
     parser.add_argument("--environment", required=True)
     parser.add_argument("--actor", required=True)
+    parser.add_argument("--branch-policy", type=Path)
     parser.add_argument("--github-instance")
     parser.add_argument("--gitlab-instance")
     parser.add_argument("--jira-instance")
@@ -50,11 +51,14 @@ def main() -> None:
         )
         if instance is not None
     }
+    from mcp_system.mcp.branch_policy import BranchWritePolicy
+
     dispatcher = MCPDispatcher(
         system,
         args.environment,
         actor=args.actor,
         bindings=bindings,
+        branch_policy=BranchWritePolicy.load(args.branch_policy) if args.branch_policy else None,
     )
     run_stdio(MCPJSONRPCServer(dispatcher))
 
