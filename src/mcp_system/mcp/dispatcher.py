@@ -8,6 +8,7 @@ from typing import Any, Mapping, Sequence
 
 from ..core import MCPSystem
 from ..errors import ServiceOperationError
+from .branch_policy import BranchWritePolicy
 
 
 class MCPProtocolError(Exception):
@@ -103,12 +104,14 @@ class MCPDispatcher:
         actor: str,
         bindings: Mapping[str, str] | None = None,
         surfaces: SurfaceRegistry | None = None,
+        branch_policy: BranchWritePolicy | None = None,
     ) -> None:
         self.system = system
         self.environment_id = environment_id
         self.actor = actor
         self.bindings = dict(bindings or {})
         self.surfaces = surfaces or SurfaceRegistry.builtins()
+        self.branch_policy = branch_policy
         self._tools = self._resolve_tools()
 
     def list_tools(self) -> list[dict[str, Any]]:
@@ -125,6 +128,13 @@ class MCPDispatcher:
                 tool.argument_renames.get(key, key): value
                 for key, value in arguments.items()
             }
+            if self.branch_policy is not None:
+                service = self.system.control_plane.get_service(self.environment_id, instance_id)
+                self.branch_policy.check(
+                    self.system, self.environment_id, self.actor, instance_id,
+                    service.plugin_id, tool.operation, provider_arguments,
+                    read_only=tool.read_only,
+                )
             result = self.system.invoke_service_operation(
                 self.environment_id,
                 instance_id,
